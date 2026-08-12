@@ -112,9 +112,16 @@ button.go:hover{background:#264c40}
 .hint code{font-family:'JetBrains Mono',monospace;font-size:12.5px;background:rgba(47,93,79,.1);
   padding:1px 6px;border-radius:2px;color:var(--moss);font-weight:600}
 .count{font-size:13px;color:var(--mute);margin:20px 0 12px;font-weight:500;letter-spacing:.04em;text-transform:uppercase}
-.mapawrap{display:none;margin:16px 0 4px;border:1px solid var(--line);border-radius:3px;overflow:hidden}
+.mapawrap{display:none;margin:18px 0 6px;border:1px solid var(--line);border-radius:3px;overflow:hidden}
 .mapawrap.on{display:block}
+.mapabarra{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:9px 14px;background:var(--card);border-bottom:1px solid var(--line);font-size:13px;color:var(--mute)}
+.mapabarra button{padding:5px 12px;font:inherit;font-size:12.5px;background:none;
+  border:1px solid var(--line);border-radius:20px;cursor:pointer;color:var(--mute);white-space:nowrap}
+.mapabarra button:hover{border-color:var(--moss);color:var(--moss)}
 #mapa{height:380px;width:100%;background:var(--card)}
+#mapa.vazio{display:flex;align-items:center;justify-content:center;color:var(--mute);
+  font-size:13.5px;text-align:center;padding:20px;height:auto;min-height:120px}
 .leaflet-popup-content{font-family:Inter,sans-serif;font-size:13px;margin:10px 12px}
 .leaflet-popup-content b{font-family:Fraunces,serif;font-size:14px}
 .ordbar{margin-top:9px;display:flex;gap:6px;flex-wrap:wrap;text-transform:none;letter-spacing:0}
@@ -247,7 +254,13 @@ td.c{font-family:'JetBrains Mono',monospace;font-weight:600}
     <code>planta</code> / <code>pronto</code> para filtrar por entrega.
   </div>
   <div class="parsed" id="parsed"></div>
-  <div id="mapawrap" class="mapawrap"><div id="mapa"></div></div>
+  <div id="mapawrap" class="mapawrap">
+    <div class="mapabarra">
+      <span id="mapainfo"></span>
+      <button id="btmapa">Ocultar mapa</button>
+    </div>
+    <div id="mapa"></div>
+  </div>
   <div class="count" id="count"></div>
   <div id="results"></div>
 </section>
@@ -1410,15 +1423,8 @@ function render(list, f){
         ${[['','Relevância'],['preco_asc','Menor preço'],['preco_desc','Maior preço'],
            ['area_desc','Maior área'],['recente','Mais recentes']]
           .map(([v,l])=>`<button class="ordb${(ordenacao||'')===v?' on':''}" data-ord="${v}">${l}</button>`).join('')}
-        <button class="ordb${mapaAberto?' on':''}" id="btmapa">Mapa (${list.filter(r=>r.x.lat&&r.x.lng).length})</button>
        </div>`;
-  const bm = document.getElementById('btmapa');
-  if(bm) bm.onclick = () => {
-    mapaAberto = !mapaAberto;
-    bm.classList.toggle('on', mapaAberto);
-    if(mapaAberto) desenharMapa(list);
-    else document.getElementById('mapawrap').classList.remove('on');
-  };
+  atualizarMapa(list);
   document.querySelectorAll('.ordb[data-ord]').forEach(b => b.onclick = () => {
     ordenacao = b.dataset.ord || null;
     aplicarOrdem(ultimaLista); aplicarOrdem(ampliados);
@@ -1426,8 +1432,9 @@ function render(list, f){
   });
   R.innerHTML = list.map(r => cardHTML(r)).join('') + blocoAmpliacao(list.length);
   ligarBotaoAmpliacao();
-  document.querySelectorAll('[data-sel]').forEach(b =>
-    b.onclick = () => alternarSelecao(parseInt(b.dataset.sel, 10)));
+  // Os botões de selecionar NÃO são ligados aqui: usam delegação no
+  // documento (ver _aoTocarFoto). Ligar a cada render deixava uma fresta
+  // em que o clique não pegava — era preciso recarregar a página.
   // As fotos NÃO são ligadas aqui: o clique é tratado por delegação no
   // documento (ver abaixo). Ligar elemento por elemento a cada render abria
   // uma janela em que um toque antes da religação caía no href e abria a
@@ -1674,6 +1681,102 @@ function galFechar(){
   document.getElementById('galImg').src = '';
 }
 
+/* ---------- Mapa dos resultados ----------
+   Aberto por padrão: ver onde os imóveis ficam costuma ser a primeira
+   pergunta do cliente. O corretor pode ocultar; a escolha vale até
+   recarregar a página. O Leaflet é baixado uma vez só.              */
+let mapaAberto = true, _mapa = null, _marcadores = null, _leafletErro = false;
+
+function carregarLeaflet(){
+  if(window.L) return Promise.resolve();
+  if(window._leafletCarregando) return window._leafletCarregando;
+  window._leafletCarregando = new Promise((ok, erro) => {
+    const css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(css);
+    const js = document.createElement('script');
+    js.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    js.onload = () => ok();
+    js.onerror = () => erro(new Error('nao consegui baixar o mapa'));
+    document.head.appendChild(js);
+    setTimeout(() => erro(new Error('o mapa demorou demais para carregar')), 15000);
+  });
+  return window._leafletCarregando;
+}
+
+/** Chamado a cada busca: mostra/esconde e redesenha. */
+function atualizarMapa(lista){
+  const wrap = document.getElementById('mapawrap');
+  if(!wrap) return;
+  const btn  = document.getElementById('btmapa');
+  const info = document.getElementById('mapainfo');
+
+  if(!lista || !lista.length){ wrap.classList.remove('on'); return; }
+
+  const pts = lista.filter(r => r.x.lat && r.x.lng);
+  const semCoord = lista.length - pts.length;
+
+  wrap.classList.toggle('on', mapaAberto);
+  if(btn) btn.textContent = mapaAberto ? 'Ocultar mapa' : 'Mostrar mapa';
+  if(info) info.innerHTML = pts.length
+    ? `<b>${pts.length}</b> no mapa` + (semCoord ? ` · ${semCoord} sem posição cadastrada` : '')
+    : 'Nenhum destes imóveis tem posição cadastrada';
+
+  if(mapaAberto) desenharMapa(pts);
+}
+
+async function desenharMapa(pts){
+  const div = document.getElementById('mapa');
+  if(!div) return;
+
+  if(!pts.length){
+    div.classList.add('vazio');
+    div.innerHTML = 'Nenhum destes imóveis tem coordenada cadastrada.';
+    return;
+  }
+  if(_leafletErro){
+    div.classList.add('vazio');
+    div.textContent = 'Não consegui carregar o mapa. Verifique a conexão e recarregue a página.';
+    return;
+  }
+  try{
+    await carregarLeaflet();
+  }catch(e){
+    _leafletErro = true;
+    div.classList.add('vazio');
+    div.textContent = 'Não consegui carregar o mapa: ' + e.message;
+    return;
+  }
+  div.classList.remove('vazio');
+
+  if(!_mapa){
+    div.innerHTML = '';
+    // scrollWheelZoom desligado: rolar a página não deve dar zoom sem querer.
+    _mapa = L.map(div, {scrollWheelZoom:false});
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      {maxZoom:18, attribution:'© OpenStreetMap'}).addTo(_mapa);
+    _mapa.on('click', () => _mapa.scrollWheelZoom.enable());
+  }
+  if(_marcadores) _marcadores.forEach(m => _mapa.removeLayer(m));
+
+  _marcadores = pts.map(r => {
+    const x = r.x;
+    const m = L.marker([x.lat, x.lng]).addTo(_mapa);
+    const tit = (x.ti || '').replace(/[\uE000-\uF8FF]/g, '').slice(0, 60);
+    const foto = (x.fotos && x.fotos[0])
+      ? `<img src="${x.fotos[0].p}" style="width:100%;height:80px;object-fit:cover;border-radius:2px;margin-bottom:6px">`
+      : '';
+    m.bindPopup(`${foto}<b>${tit}</b><br>${x.b} · ${brl(x.p)}<br>`
+      + `${x.q ?? '?'} quartos${x.a ? ' · ' + x.a + 'm²' : ''}<br>`
+      + `<span style="color:#6b7770">#${x.c}</span>`, {maxWidth:220});
+    return m;
+  });
+
+  _mapa.fitBounds(L.latLngBounds(pts.map(r => [r.x.lat, r.x.lng])), {padding:[30,30], maxZoom:15});
+  setTimeout(() => { if(_mapa) _mapa.invalidateSize(); }, 120);
+}
+
 let ampliados = [];
 let mostrandoAmpliacao = false;
 let ordenacao = null;      // null = por relevância
@@ -1707,7 +1810,6 @@ function ligarBotaoAmpliacao(){
 
 function search(){
   mostrandoAmpliacao = false;
-  mapaAberto = false;
   const mw = document.getElementById('mapawrap');
   if(mw) mw.classList.remove('on');
   const raw = document.getElementById('q').value.trim();
@@ -2135,9 +2237,21 @@ function _aoTocarFoto(ev){
     ev.preventDefault();
     const im = D.find(y => y.c === parseInt(b.dataset.galeria, 10));
     if(im) galAbrir(im.fotos, 0, im.ti);
+    return;
+  }
+  const sel = ev.target.closest && ev.target.closest('[data-sel]');
+  if(sel){
+    ev.preventDefault();
+    alternarSelecao(parseInt(sel.dataset.sel, 10));
   }
 }
 document.addEventListener('click', _aoTocarFoto, true);
+
+const _btMapa = document.getElementById('btmapa');
+if(_btMapa) _btMapa.onclick = () => {
+  mapaAberto = !mapaAberto;
+  atualizarMapa(ultimaLista.slice(0, 50));
+};
 
 document.getElementById('galX').onclick    = galFechar;
 document.getElementById('galAnt').onclick  = () => galMostrar(_galI - 1);
