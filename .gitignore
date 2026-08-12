@@ -1,0 +1,8 @@
+# NUNCA versionar: chaves e senha da instalação
+credenciais.php
+
+# Dados da operação, que vivem no servidor
+dados/
+*.json
+!composer.json
+backup-ferramenta/
