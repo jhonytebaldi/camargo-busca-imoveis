@@ -106,5 +106,3 @@ enviar uma planilha que o inclua.
 - A pasta `dados/` é bloqueada pelo `.htaccess`.
 - Telefone de proprietário **não** é publicado — só os nomes.
 - Login bloqueia por 15 minutos após 6 tentativas erradas.
-
-<!-- marca de teste de rollback -->
