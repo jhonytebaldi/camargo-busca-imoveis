@@ -63,54 +63,185 @@ function txt_norm($s) {
 }
 
 // Grafia oficial de cada bairro (chave = versão normalizada).
+// Grafia oficial de cada bairro (chave = versão sem acento, minúscula).
 $GLOBALS['BAIRRO_NOME'] = [
-    // Norte
-    'america'=>'América','atiradores'=>'Atiradores','gloria'=>'Glória',
-    'costa e silva'=>'Costa e Silva','santo antonio'=>'Santo Antônio',
-    'bom retiro'=>'Bom Retiro','saguacu'=>'Saguaçu','dona francisca'=>'Dona Francisca',
-    'dona francisca (pirabeiraba)'=>'Dona Francisca','dona francisca (piraberaba)'=>'Dona Francisca',
-    'jardim sofia'=>'Jardim Sofia',
-    // Sul
-    'anita garibaldi'=>'Anita Garibaldi','floresta'=>'Floresta','guanabara'=>'Guanabara',
-    'itaum'=>'Itaum','bucarein'=>'Bucarein','fatima'=>'Fátima',
-    'adhemar garcia'=>'Adhemar Garcia','jarivatuba'=>'Jarivatuba',
-    'parque guarani'=>'Parque Guarani','petropolis'=>'Petrópolis',
-    'boehmerwald'=>'Boehmerwald','itinga'=>'Itinga','profipo'=>'Profipo',
-    'santa catarina'=>'Santa Catarina','ulysses guimaraes'=>'Ulysses Guimarães',
-    'joao costa'=>'João Costa','paranaguamirim'=>'Paranaguamirim',
-    'volta redonda'=>'Volta Redonda',
-    // Leste
-    'aventureiro'=>'Aventureiro','iririu'=>'Iririú','boa vista'=>'Boa Vista',
-    'comasa'=>'Comasa','espinheiros'=>'Espinheiros','jardim iririu'=>'Jardim Iririú',
-    'vila cubatao'=>'Vila Cubatão','zona industrial tupy'=>'Zona Industrial Tupy',
-    'zona industrial norte'=>'Zona Industrial Norte',
-    // Oeste
-    'vila nova'=>'Vila Nova','morro do meio'=>'Morro do Meio',
-    'nova brasilia'=>'Nova Brasília','sao marcos'=>'São Marcos',
-    // Distrito
-    'pirabeiraba'=>'Pirabeiraba','centro (pirabeiraba)'=>'Centro (Pirabeiraba)',
+    'centro' => 'Centro',
+    'america' => 'América',
+    'atiradores' => 'Atiradores',
+    'gloria' => 'Glória',
+    'saguacu' => 'Saguaçu',
+    'bom retiro' => 'Bom Retiro',
+    'santo antonio' => 'Santo Antônio',
+    'costa e silva' => 'Costa e Silva',
+    'jardim sofia' => 'Jardim Sofia',
+    'jardim paraiso' => 'Jardim Paraíso',
+    'rio bonito' => 'Rio Bonito',
+    'zona industrial norte' => 'Zona Industrial Norte',
+    'aventureiro' => 'Aventureiro',
+    'iririu' => 'Iririú',
+    'jardim iririu' => 'Jardim Iririú',
+    'comasa' => 'Comasa',
+    'boa vista' => 'Boa Vista',
+    'espinheiros' => 'Espinheiros',
+    'vila cubatao' => 'Vila Cubatão',
+    'zona industrial tupy' => 'Zona Industrial Tupy',
+    'morro do amaral' => 'Morro do Amaral',
+    'anita garibaldi' => 'Anita Garibaldi',
+    'bucarein' => 'Bucarein',
+    'floresta' => 'Floresta',
+    'guanabara' => 'Guanabara',
+    'itaum' => 'Itaum',
+    'fatima' => 'Fátima',
+    'adhemar garcia' => 'Adhemar Garcia',
+    'joao costa' => 'João Costa',
+    'jarivatuba' => 'Jarivatuba',
+    'parque guarani' => 'Parque Guarani',
+    'paranaguamirim' => 'Paranaguamirim',
+    'petropolis' => 'Petrópolis',
+    'boehmerwald' => 'Boehmerwald',
+    'itinga' => 'Itinga',
+    'profipo' => 'Profipo',
+    'santa catarina' => 'Santa Catarina',
+    'ulysses guimaraes' => 'Ulysses Guimarães',
+    'escolinha' => 'Escolinha',
+    'vila nova' => 'Vila Nova',
+    'morro do meio' => 'Morro do Meio',
+    'nova brasilia' => 'Nova Brasília',
+    'sao marcos' => 'São Marcos',
+    'pirabeiraba (centro)' => 'Pirabeiraba (Centro)',
+    'dona francisca' => 'Dona Francisca',
+    'estrada da ilha' => 'Estrada da Ilha',
+    'estrada bonita' => 'Estrada Bonita',
+    'rio da prata' => 'Rio da Prata',
+    'quiriri' => 'Quiriri',
+    'vigorelli' => 'Vigorelli',
+    'centro (pirabeiraba)' => 'Pirabeiraba (Centro)',
+    'dona francisca (pirabeiraba)' => 'Dona Francisca',
+    'dona francisca (piraberaba)' => 'Dona Francisca',
+    'pirabeiraba' => 'Pirabeiraba (Centro)',
+    'volta redonda' => 'Volta Redonda',
+    'paranaguamirim' => 'Paranaguamirim',
 ];
 
 $GLOBALS['BAIRRO_REGIAO'] = [
-    'america'=>'Norte','atiradores'=>'Norte','gloria'=>'Norte','costa e silva'=>'Norte',
-    'santo antonio'=>'Norte','bom retiro'=>'Norte','saguacu'=>'Norte',
-    'dona francisca'=>'Norte','jardim sofia'=>'Norte',
-
-    'anita garibaldi'=>'Sul','floresta'=>'Sul','guanabara'=>'Sul','itaum'=>'Sul',
-    'bucarein'=>'Sul','fatima'=>'Sul','adhemar garcia'=>'Sul','jarivatuba'=>'Sul',
-    'parque guarani'=>'Sul','petropolis'=>'Sul','boehmerwald'=>'Sul','itinga'=>'Sul',
-    'profipo'=>'Sul','santa catarina'=>'Sul','ulysses guimaraes'=>'Sul',
-    'joao costa'=>'Sul','paranaguamirim'=>'Sul','volta redonda'=>'Sul',
-
-    'aventureiro'=>'Leste','iririu'=>'Leste','boa vista'=>'Leste','comasa'=>'Leste',
-    'espinheiros'=>'Leste','jardim iririu'=>'Leste','vila cubatao'=>'Leste',
-    'zona industrial tupy'=>'Leste','zona industrial norte'=>'Leste',
-
-    'vila nova'=>'Oeste','morro do meio'=>'Oeste','nova brasilia'=>'Oeste',
-    'sao marcos'=>'Oeste',
-
-    'pirabeiraba'=>'Pirabeiraba (distrito)','centro (pirabeiraba)'=>'Pirabeiraba (distrito)',
+    'centro' => 'Centro',
+    'america' => 'Norte',
+    'atiradores' => 'Norte',
+    'gloria' => 'Norte',
+    'saguacu' => 'Norte',
+    'bom retiro' => 'Norte',
+    'santo antonio' => 'Norte',
+    'costa e silva' => 'Norte',
+    'jardim sofia' => 'Norte',
+    'jardim paraiso' => 'Norte',
+    'rio bonito' => 'Norte',
+    'zona industrial norte' => 'Norte',
+    'aventureiro' => 'Leste',
+    'iririu' => 'Leste',
+    'jardim iririu' => 'Leste',
+    'comasa' => 'Leste',
+    'boa vista' => 'Leste',
+    'espinheiros' => 'Leste',
+    'vila cubatao' => 'Leste',
+    'zona industrial tupy' => 'Leste',
+    'morro do amaral' => 'Leste',
+    'anita garibaldi' => 'Sul',
+    'bucarein' => 'Sul',
+    'floresta' => 'Sul',
+    'guanabara' => 'Sul',
+    'itaum' => 'Sul',
+    'fatima' => 'Sul',
+    'adhemar garcia' => 'Sul',
+    'joao costa' => 'Sul',
+    'jarivatuba' => 'Sul',
+    'parque guarani' => 'Sul',
+    'paranaguamirim' => 'Sul',
+    'petropolis' => 'Sul',
+    'boehmerwald' => 'Sul',
+    'itinga' => 'Sul',
+    'profipo' => 'Sul',
+    'santa catarina' => 'Sul',
+    'ulysses guimaraes' => 'Sul',
+    'escolinha' => 'Sul',
+    'vila nova' => 'Oeste',
+    'morro do meio' => 'Oeste',
+    'nova brasilia' => 'Oeste',
+    'sao marcos' => 'Oeste',
+    'pirabeiraba (centro)' => 'Pirabeiraba (distrito)',
+    'dona francisca' => 'Pirabeiraba (distrito)',
+    'estrada da ilha' => 'Pirabeiraba (distrito)',
+    'estrada bonita' => 'Pirabeiraba (distrito)',
+    'rio da prata' => 'Pirabeiraba (distrito)',
+    'quiriri' => 'Pirabeiraba (distrito)',
+    'vigorelli' => 'Norte',
+    'centro (pirabeiraba)' => 'Pirabeiraba (distrito)',
+    'dona francisca (pirabeiraba)' => 'Pirabeiraba (distrito)',
+    'dona francisca (piraberaba)' => 'Pirabeiraba (distrito)',
+    'pirabeiraba' => 'Pirabeiraba (distrito)',
+    'volta redonda' => 'Sul',   // Araquari, agrupado como Sul a pedido
 ];
+
+// Coordenada oficial do centro de cada bairro. É melhor que a média dos
+// imóveis: com 2 ou 3 imóveis, a média puxa para onde eles estão, e chegou
+// a errar 3,1 km no Itinga.
+$GLOBALS['BAIRRO_COORD'] = [
+    'centro' => [-26.29800, -48.84594],
+    'america' => [-26.28339, -48.85015],
+    'atiradores' => [-26.30287, -48.85227],
+    'gloria' => [-26.29708, -48.87292],
+    'saguacu' => [-26.28330, -48.84085],
+    'bom retiro' => [-26.26294, -48.84518],
+    'santo antonio' => [-26.26952, -48.85413],
+    'costa e silva' => [-26.27497, -48.88278],
+    'jardim sofia' => [-26.23776, -48.83371],
+    'jardim paraiso' => [-26.21441, -48.81985],
+    'rio bonito' => [-26.15513, -48.90420],
+    'zona industrial norte' => [-26.26264, -48.92651],
+    'aventureiro' => [-26.22703, -48.81542],
+    'iririu' => [-26.27122, -48.82132],
+    'jardim iririu' => [-26.26075, -48.80998],
+    'comasa' => [-26.28234, -48.80385],
+    'boa vista' => [-26.30733, -48.82799],
+    'espinheiros' => [-26.28442, -48.78718],
+    'vila cubatao' => [-26.21784, -48.80028],
+    'zona industrial tupy' => [-26.29417, -48.81134],
+    'morro do amaral' => [-26.30148, -48.76479],
+    'anita garibaldi' => [-26.31727, -48.84664],
+    'bucarein' => [-26.31627, -48.84217],
+    'floresta' => [-26.33241, -48.84523],
+    'guanabara' => [-26.31905, -48.82786],
+    'itaum' => [-26.33029, -48.83575],
+    'fatima' => [-26.32125, -48.81273],
+    'adhemar garcia' => [-26.32057, -48.80149],
+    'joao costa' => [-26.34154, -48.80276],
+    'jarivatuba' => [-26.33329, -48.80550],
+    'parque guarani' => [-26.35633, -48.80533],
+    'paranaguamirim' => [-26.34756, -48.79232],
+    'petropolis' => [-26.34618, -48.83093],
+    'boehmerwald' => [-26.36287, -48.81991],
+    'itinga' => [-26.37894, -48.82649],
+    'profipo' => [-26.36547, -48.84072],
+    'santa catarina' => [-26.34900, -48.84629],
+    'ulysses guimaraes' => [-26.32521, -48.79536],
+    'escolinha' => [-26.37200, -48.82500],
+    'vila nova' => [-26.29087, -48.88725],
+    'morro do meio' => [-26.33718, -48.90148],
+    'nova brasilia' => [-26.33795, -48.88735],
+    'sao marcos' => [-26.31009, -48.88595],
+    'pirabeiraba (centro)' => [-26.20556, -48.90972],
+    'dona francisca' => [-26.19806, -48.92078],
+    'estrada da ilha' => [-26.22985, -48.86256],
+    'estrada bonita' => [-26.13550, -48.91120],
+    'rio da prata' => [-26.17485, -48.95736],
+    'quiriri' => [-26.13333, -49.01667],
+    'vigorelli' => [-26.22444, -48.76822],
+    'centro (pirabeiraba)' => [-26.20556, -48.90972],
+    'pirabeiraba' => [-26.20556, -48.90972],
+];
+
+// Localidades rurais de Pirabeiraba: são muito espalhadas, então a busca por
+// proximidade nelas usa um raio maior — senão não devolveria nada.
+$GLOBALS['BAIRRO_RURAL'] = ['estrada da ilha', 'estrada bonita', 'rio da prata', 'quiriri'];
 
 /** Devolve [bairro com grafia oficial, região]. */
 function bairro_regiao($bruto) {
@@ -361,14 +492,27 @@ try {
         $acc[$b]['la'] += $la; $acc[$b]['lo'] += $lo; $acc[$b]['n']++;
     }
     $centros = [];
+    // 1) Media dos imoveis do bairro — serve so de reserva.
     foreach ($acc as $b => $v) {
         $centros[$b] = ['la' => round($v['la'] / $v['n'], 6),
                         'lo' => round($v['lo'] / $v['n'], 6),
-                        'n'  => $v['n']];
+                        'n'  => $v['n'], 'fonte' => 'imoveis'];
+    }
+    // 2) Coordenada oficial: sobrepoe a media onde existir e acrescenta os
+    //    bairros sem nenhum imovel geocodificado. E mais confiavel: com dois
+    //    ou tres imoveis a media puxa para onde eles estao (chegou a errar
+    //    3,1 km no Itinga).
+    foreach ($GLOBALS['BAIRRO_COORD'] as $k => $c) {
+        $nome = $GLOBALS['BAIRRO_NOME'][$k] ?? $k;
+        $centros[$nome] = ['la' => $c[0], 'lo' => $c[1],
+                           'n' => isset($centros[$nome]) ? $centros[$nome]['n'] : 0,
+                           'fonte' => 'oficial'];
     }
     $porOrigem = ['crm' => 0, 'endereco' => 0, 'rua' => 0];
     foreach ($saida as $r) if (!empty($r['geo'])) $porOrigem[$r['geo']] = ($porOrigem[$r['geo']] ?? 0) + 1;
-    log_sync('centros de bairro: ' . count($centros)
+    $oficiais = 0;
+    foreach ($centros as $c) if (isset($c['fonte']) && $c['fonte'] === 'oficial') $oficiais++;
+    log_sync('centros de bairro: ' . count($centros) . " (oficiais: $oficiais)"
         . ' | coordenadas: CRM ' . $porOrigem['crm']
         . ', endereço ' . $porOrigem['endereco'] . ', rua ' . $porOrigem['rua']);
 
@@ -386,6 +530,9 @@ try {
         'gerado_em'      => date('c'),
         'centros'        => $centros,
         'referencias'    => $refs,
+        'bairros_rurais' => array_values(array_map(
+            function ($k) { return isset($GLOBALS['BAIRRO_NOME'][$k]) ? $GLOBALS['BAIRRO_NOME'][$k] : $k; },
+            $GLOBALS['BAIRRO_RURAL'])),
         'coordenadas'    => $porOrigem,
         'refs_gerado_em' => $refsMeta,
         'total'          => count($saida),
