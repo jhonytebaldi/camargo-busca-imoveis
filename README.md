@@ -41,8 +41,12 @@ O atualizador **nunca** toca em `credenciais.php` nem na pasta de dados.
 | `geocodificar.php` | Converte endereços em coordenadas |
 | `exportar-enderecos.php` | Baixa CSV dos imóveis sem coordenada |
 | `importar-coordenadas.php` | Sobe coordenadas obtidas por fora |
-| `testar-api.php` | Confere as credenciais do Robust |
-| `gerar-hash.php` | Gera o hash de uma senha nova |
+
+### Fora do repositorio, de proposito
+
+`gerar-hash.php` (gera o hash de uma senha nova) e `testar-api.php`
+(confere as credenciais do Robust) nao ficam versionados: assim nao voltam
+ao servidor a cada atualizacao. Peca quando precisar, use e apague.
 
 ## Cron diário
 
