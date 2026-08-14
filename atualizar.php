@@ -19,7 +19,10 @@ require_once __DIR__ . '/config.php';
 // Pelo navegador exige login. Pelo cron (linha de comando) nao ha sessao,
 // e o acesso ao servidor ja e a credencial.
 $viaCli = php_sapi_name() === 'cli';
-if (!$viaCli) {
+// O webhook.php inclui este arquivo depois de conferir a assinatura do
+// GitHub. Nesse caso nao ha sessao — a autorizacao ja foi feita la.
+$interno = !empty($GLOBALS['DEPLOY_INTERNO']);
+if (!$viaCli && !$interno) {
     session_start();
     if (empty($_SESSION['autenticado'])) { header('Location: login.php'); exit; }
     header('Content-Type: text/plain; charset=utf-8');
@@ -150,8 +153,9 @@ function rmrf($p) {
     @rmdir($p);
 }
 
-if ($viaCli) {
-    $args = implode(' ', array_slice($argv, 1));
+if ($viaCli || $interno) {
+    $args = $interno ? ($GLOBALS['DEPLOY_ARGS'] ?? '--instalar --silencioso')
+                     : implode(' ', array_slice($argv, 1));
     $acao = strpos($args, '--instalar') !== false ? 'instalar'
           : (strpos($args, '--voltar') !== false ? 'voltar' : 'ver');
     $silencioso = strpos($args, '--silencioso') !== false;
@@ -207,8 +211,10 @@ if ($acao === 'ver') {
 
 if (!$novos && !$mudados) {
     rmrf($novo); @unlink($tgz);
-    if ($silencioso) { ob_end_clean(); exit(0); }   // nada mudou: silencio
-    exit("\nJa esta na versao mais recente.\n");
+    if ($silencioso) { ob_end_clean(); if ($interno) return; exit(0); }
+    echo "\nJa esta na versao mais recente.\n";
+    if ($interno) return;
+    exit;
 }
 
 echo "\nGuardando copia da versao atual...\n";
@@ -247,5 +253,6 @@ if ($silencioso) { $saida = ob_get_clean(); echo $saida; }
     if (!$viaCli) http_response_code(500);
     log_sync('atualizacao falhou: ' . $e->getMessage());
     echo "\nERRO: " . $e->getMessage() . "\n";
+    if ($interno) return;
     if ($viaCli) exit(1);
 }
