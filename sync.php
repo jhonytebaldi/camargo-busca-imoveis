@@ -516,10 +516,15 @@ try {
         // depende de exportação manual. mes_conclusao = 0 significa que o mês
         // não foi preenchido — nesse caso guardamos só o ano, sem inventar.
         $anoC = isset($a['ano_conclusao']) ? (int)$a['ano_conclusao'] : 0;
-        $mesC = isset($a['mes_conclusao']) ? (int)$a['mes_conclusao'] : 0;
+        $mesC = isset($a['mes_conclusao']) ? (int)$a['mes_conclusao'] : null;
         if ($anoC >= 2000 && $anoC <= 2100) {
             $reg['ea'] = $anoC;
-            $reg['em'] = ($mesC >= 1 && $mesC <= 12) ? $mesC : null;
+            // ATENÇÃO: mes_conclusao conta a partir de ZERO (0 = janeiro,
+            // 11 = dezembro). Confirmado de tres formas: a tela do Robust
+            // mostra Dezembro para o valor 11; o campo nunca vale 12; e 11 e
+            // o valor mais comum da base, coerente com entrega de obra em
+            // dezembro. Ler o numero cru deixava toda entrega um mes adiantada.
+            $reg['em'] = ($mesC !== null && $mesC >= 0 && $mesC <= 11) ? $mesC + 1 : null;
             $reg['ef'] = ($reg['em'] === null) ? 'API (só ano)' : 'API';
             // Mês em branco impede calcular prazo e parcelas: vira pendência.
             if ($reg['em'] === null && !in_array('mês da entrega', $reg['f'] ?? [], true)) {

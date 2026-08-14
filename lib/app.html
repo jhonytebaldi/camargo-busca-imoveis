@@ -457,9 +457,14 @@ function parseEntregaCampo(v){
   const s=String(v==null?'':v).trim();
   const m=s.match(/^\s*(\d{1,2}|-+)\s*\/\s*(\d{4}|-+)\s*$/);
   if(!m) return [null,null];
-  let mes = /^\d+$/.test(m[1]) ? parseInt(m[1]) : null;
   const ano = /^\d+$/.test(m[2]) ? parseInt(m[2]) : null;
-  if(mes!=null && (mes<1||mes>12)) mes=null;
+  // O numero exportado conta a partir de ZERO, igual ao mes_conclusao da API:
+  // "11 / 2026" e dezembro de 2026, nao novembro.
+  let mes = null;
+  if(/^\d+$/.test(m[1])){
+    const n = parseInt(m[1]);
+    if(n >= 0 && n <= 11) mes = n + 1;
+  }
   return [ano,mes];
 }
 
