@@ -35,6 +35,13 @@ define('PRESERVAR', ['credenciais.php', 'dados', 'geocode.json']);
 
 $BACKUP = dirname(DATA_DIR) . '/backup-ferramenta';
 
+// Lista do que a ULTIMA atualizacao instalou. E o que permite saber, na
+// proxima, quais arquivos sairam do repositorio e devem ser removidos daqui.
+// Sem essa lista nao ha como distinguir "arquivo que o repositorio apagou"
+// de "arquivo que alguem colocou no servidor de proposito" — e apagar o
+// segundo por engano seria pior do que deixar lixo.
+$MANIFESTO = DATA_DIR . '/instalados.json';
+
 function baixarRepo() {
     if (GITHUB_REPO === '') throw new Exception(
         "GITHUB_REPO nao esta definido em credenciais.php.\n"
@@ -197,10 +204,40 @@ foreach ($arquivos as $rel => $tam) {
     else $iguais++;
 }
 
+// O que saiu do repositorio desde a ultima instalacao
+$anterior = file_exists($MANIFESTO) ? (json_decode(@file_get_contents($MANIFESTO), true) ?: []) : [];
+$remover = [];
+foreach ($anterior as $rel) {
+    if (isset($arquivos[$rel])) continue;                 // continua no repositorio
+    if (in_array(basename($rel), PRESERVAR, true)) continue;
+    if (!file_exists(__DIR__ . '/' . $rel)) continue;     // ja nao existe
+    // Trava de seguranca: so apaga dentro da pasta da ferramenta.
+    $alvo = realpath(__DIR__ . '/' . $rel);
+    if ($alvo === false || strpos($alvo, realpath(__DIR__)) !== 0) continue;
+    $remover[] = $rel;
+}
+
+// Arquivos que estao no servidor e nunca vieram do repositorio. NAO sao
+// apagados: podem ter sido colocados de proposito. So avisamos.
+$orfaos = [];
+if ($anterior) {
+    foreach (arquivosDe(__DIR__) as $rel => $tam) {
+        if (isset($arquivos[$rel]) || in_array($rel, $anterior, true)) continue;
+        if (in_array(basename($rel), PRESERVAR, true)) continue;
+        $orfaos[] = $rel;
+    }
+}
+
 echo "--- O QUE MUDA ---\n";
 foreach ($novos as $f)   echo "  NOVO       $f\n";
 foreach ($mudados as $f) echo "  ATUALIZA   $f\n";
+foreach ($remover as $f) echo "  REMOVE     $f\n";
 echo "  (sem alteracao: $iguais)\n";
+if ($orfaos) {
+    echo "\nNo servidor mas fora do repositorio (nao serao tocados):\n";
+    foreach ($orfaos as $f) echo "  ?          $f\n";
+    echo "  Apague pelo gerenciador de arquivos se nao forem mais usados.\n";
+}
 echo "\nPreservados sempre: " . implode(', ', PRESERVAR) . "\n";
 
 if ($acao === 'ver') {
@@ -209,7 +246,7 @@ if ($acao === 'ver') {
     exit;
 }
 
-if (!$novos && !$mudados) {
+if (!$novos && !$mudados && !$remover) {
     rmrf($novo); @unlink($tgz);
     if ($silencioso) { ob_end_clean(); if ($interno) return; exit(0); }
     echo "\nJa esta na versao mais recente.\n";
@@ -221,7 +258,7 @@ echo "\nGuardando copia da versao atual...\n";
 rmrf($BACKUP);
 mkdir($BACKUP, 0750, true);
 $nb = 0;
-foreach ($mudados as $rel) {
+foreach (array_merge($mudados, $remover) as $rel) {
     $destino = "$BACKUP/$rel";
     @mkdir(dirname($destino), 0755, true);
     if (copy(__DIR__ . '/' . $rel, $destino)) $nb++;
@@ -236,11 +273,21 @@ foreach (array_merge($novos, $mudados) as $rel) {
     if (copy("$novo/$rel", $destino)) { $ok++; echo "  ok  $rel\n"; }
     else $erros[] = $rel;
 }
+$removidos = 0;
+foreach ($remover as $rel) {
+    if (@unlink(__DIR__ . '/' . $rel)) { $removidos++; echo "  removido  $rel\n"; }
+    else $erros[] = "nao removeu $rel";
+}
+
+// Guarda o que este pacote instalou, para a proxima comparacao.
+@file_put_contents($MANIFESTO, json_encode(array_keys($arquivos), JSON_UNESCAPED_UNICODE));
+
 rmrf($novo); @unlink($tgz);
 
-log_sync("atualizacao instalada: $ok arquivos" . ($erros ? ', ' . count($erros) . ' falharam' : ''));
+log_sync("atualizacao instalada: $ok arquivos" . ($removidos ? ", $removidos removidos" : '') . ($erros ? ', ' . count($erros) . ' falharam' : ''));
 echo "\n----------------------------------------\n";
 echo "Instalados: $ok\n";
+if ($removidos) echo "Removidos: $removidos\n";
 if ($erros) {
     echo "FALHARAM: " . implode(', ', $erros) . "\n";
     echo "Verifique as permissoes da pasta.\n";
