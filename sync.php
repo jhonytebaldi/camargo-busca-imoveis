@@ -243,6 +243,13 @@ $GLOBALS['BAIRRO_COORD'] = [
 // proximidade nelas usa um raio maior — senão não devolveria nada.
 $GLOBALS['BAIRRO_RURAL'] = ['estrada da ilha', 'estrada bonita', 'rio da prata', 'quiriri'];
 
+/** Endereço reduzido ao essencial, para comparar se mudou. */
+function normalizaEndereco($e) {
+    $e = txt_norm($e);
+    $e = preg_replace('/[^a-z0-9 ]/', ' ', $e);
+    return trim(preg_replace('/\s+/', ' ', $e));
+}
+
 /** Devolve [bairro com grafia oficial, região]. */
 function bairro_regiao($bruto) {
     $n = txt_norm($bruto);
@@ -458,10 +465,20 @@ try {
             $reg['geo'] = 'crm';
         } elseif (!empty($geo[(string)$id]['la'])) {
             $g = $geo[(string)$id];
-            $reg['lat'] = $g['la'];
-            $reg['lng'] = $g['lo'];
-            // 'numero' = acertou o número da casa; 'rua' = caiu no meio da rua.
-            $reg['geo'] = $g['q'] === 'numero' ? 'endereco' : 'rua';
+            // A coordenada guardada só vale para o endereço que a gerou. Se o
+            // endereço foi corrigido no CRM depois, a coordenada antiga está
+            // errada e deve ser descartada — senão uma correção de cadastro
+            // nunca se refletiria aqui.
+            $endAtual = normalizaEndereco($reg['e'] ?? '');
+            $endUsado = normalizaEndereco($g['ruaUsada'] ?? '');
+            if ($endUsado === '' || $endUsado === $endAtual) {
+                $reg['lat'] = $g['la'];
+                $reg['lng'] = $g['lo'];
+                // 'numero' = acertou o número da casa; 'rua' = caiu no meio da rua.
+                $reg['geo'] = $g['q'] === 'numero' ? 'endereco' : 'rua';
+            } else {
+                $reg['geo'] = null;   // será refeito no próximo geocodificar.php
+            }
         }
         $reg['fotos'] = $a['_fotos'] ?? [];
 

@@ -72,6 +72,16 @@ if ($viaCli ? str_contains($args, '--limpar') : !empty($_GET['limpar'])) {
 if (!file_exists(ARQ_MERGE)) exit("Base vazia. Rode o sync antes.\n");
 $imoveis = json_decode(file_get_contents(ARQ_MERGE), true)['imoveis'] ?? [];
 
+/** Reduz o endereço ao essencial, para saber se mudou desde a última vez. */
+function normalizaParaComparar($e) {
+    $e = strtolower(trim((string)$e));
+    $de = ['á','à','ã','â','é','ê','í','ó','ô','õ','ú','ç'];
+    $para = ['a','a','a','a','e','e','i','o','o','o','u','c'];
+    $e = str_replace($de, $para, $e);
+    $e = preg_replace('/[^a-z0-9 ]/', ' ', $e);
+    return trim(preg_replace('/\s+/', ' ', $e));
+}
+
 /** Separa o endereço em rua e número. */
 function partesEndereco(array $x): ?array {
     $rua = trim((string)($x['e'] ?? ''));
@@ -147,10 +157,18 @@ foreach ($imoveis as $x) {
     // falhou antes precisa ser refeita — senão um erro no script (como a
     // vírgula que faltava antes do número) fica gravado para sempre e
     // nenhuma correção posterior tem efeito.
-    if (!empty($cache[$cod]['la'])) { $jaOk++; continue; }
+    // Só pula se a coordenada guardada corresponde ao endereço ATUAL. Se o
+    // endereço mudou no CRM, refazemos — do contrário, corrigir o cadastro
+    // no Robust nunca teria efeito aqui.
+    $endAtual = trim((string)($x['e'] ?? ''));
+    if (!empty($cache[$cod]['la'])
+        && normalizaParaComparar($cache[$cod]['ruaUsada'] ?? '') === normalizaParaComparar($endAtual)) {
+        $jaOk++; continue;
+    }
     if (isset($cache[$cod])) $jaFalhou++;
     $p = partesEndereco($x);
     if ($p === null) continue;
+    $p['bruto'] = $endAtual;
     $pendentes[$cod] = $p;
 }
 
@@ -219,11 +237,13 @@ foreach ($pendentes as $cod => $p) {
     }
     if ($r) {
         $cache[$cod] = ['la' => round($r[0], 6), 'lo' => round($r[1], 6),
-                        'q' => $r[2], 'end' => $end, 'em' => date('c')];
+                        'q' => $r[2], 'end' => $end,
+                        'ruaUsada' => $p['bruto'] ?? '', 'em' => date('c')];
         $ok++;
         echo sprintf("[%3d] #%-6s %-9s %s\n", $n, $cod, $r[2], $end);
     } else {
-        $cache[$cod] = ['la' => null, 'lo' => null, 'q' => 'falhou', 'end' => $end, 'em' => date('c')];
+        $cache[$cod] = ['la' => null, 'lo' => null, 'q' => 'falhou', 'end' => $end,
+                        'ruaUsada' => $p['bruto'] ?? '', 'em' => date('c')];
         $falhou++;
         echo sprintf("[%3d] #%-6s FALHOU    %s\n", $n, $cod, $end);
     }
