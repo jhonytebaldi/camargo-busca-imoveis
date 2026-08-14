@@ -15,11 +15,17 @@
    ===================================================================== */
 
 require_once __DIR__ . '/config.php';
-session_start();
-if (empty($_SESSION['autenticado'])) { header('Location: login.php'); exit; }
-header('Content-Type: text/plain; charset=utf-8');
-while (ob_get_level()) ob_end_flush();
-ob_implicit_flush(true);
+
+// Pelo navegador exige login. Pelo cron (linha de comando) nao ha sessao,
+// e o acesso ao servidor ja e a credencial.
+$viaCli = php_sapi_name() === 'cli';
+if (!$viaCli) {
+    session_start();
+    if (empty($_SESSION['autenticado'])) { header('Location: login.php'); exit; }
+    header('Content-Type: text/plain; charset=utf-8');
+    while (ob_get_level()) ob_end_flush();
+    ob_implicit_flush(true);
+}
 
 // Arquivos que a atualização jamais substitui ou remove.
 define('PRESERVAR', ['credenciais.php', 'dados', 'geocode.json']);
@@ -144,7 +150,19 @@ function rmrf($p) {
     @rmdir($p);
 }
 
-$acao = !empty($_GET['instalar']) ? 'instalar' : (!empty($_GET['voltar']) ? 'voltar' : 'ver');
+if ($viaCli) {
+    $args = implode(' ', array_slice($argv, 1));
+    $acao = strpos($args, '--instalar') !== false ? 'instalar'
+          : (strpos($args, '--voltar') !== false ? 'voltar' : 'ver');
+    $silencioso = strpos($args, '--silencioso') !== false;
+} else {
+    $acao = !empty($_GET['instalar']) ? 'instalar' : (!empty($_GET['voltar']) ? 'voltar' : 'ver');
+    $silencioso = false;
+}
+
+// No modo silencioso (cron) so falamos quando algo muda ou da errado, para
+// nao encher a caixa de e-mail com "nada a fazer" todo dia.
+if ($silencioso) ob_start();
 
 try {
 
@@ -189,6 +207,7 @@ if ($acao === 'ver') {
 
 if (!$novos && !$mudados) {
     rmrf($novo); @unlink($tgz);
+    if ($silencioso) { ob_end_clean(); exit(0); }   // nada mudou: silencio
     exit("\nJa esta na versao mais recente.\n");
 }
 
@@ -221,8 +240,12 @@ if ($erros) {
     echo "Verifique as permissoes da pasta.\n";
 }
 echo "\nSe algo quebrar, volte com: atualizar.php?voltar=1\n";
+if ($silencioso) { $saida = ob_get_clean(); echo $saida; }
 
 } catch (Exception $e) {
-    http_response_code(500);
+    if (!empty($silencioso)) { $saida = ob_get_clean(); echo $saida; }
+    if (!$viaCli) http_response_code(500);
+    log_sync('atualizacao falhou: ' . $e->getMessage());
     echo "\nERRO: " . $e->getMessage() . "\n";
+    if ($viaCli) exit(1);
 }
