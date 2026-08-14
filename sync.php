@@ -430,6 +430,23 @@ try {
         }
         if ($nomesCap) $reg['cap'] = $nomesCap;
         elseif (empty($reg['cap']) || !is_array($reg['cap'])) $reg['cap'] = [];
+        // Data de entrega: a API é a fonte melhor. Vem na própria listagem
+        // (mes_conclusao / ano_conclusao), está mais completa que o XLS e não
+        // depende de exportação manual. mes_conclusao = 0 significa que o mês
+        // não foi preenchido — nesse caso guardamos só o ano, sem inventar.
+        $anoC = isset($a['ano_conclusao']) ? (int)$a['ano_conclusao'] : 0;
+        $mesC = isset($a['mes_conclusao']) ? (int)$a['mes_conclusao'] : 0;
+        if ($anoC >= 2000 && $anoC <= 2100) {
+            $reg['ea'] = $anoC;
+            $reg['em'] = ($mesC >= 1 && $mesC <= 12) ? $mesC : null;
+            $reg['ef'] = ($reg['em'] === null) ? 'API (só ano)' : 'API';
+            // Mês em branco impede calcular prazo e parcelas: vira pendência.
+            if ($reg['em'] === null && !in_array('mês da entrega', $reg['f'] ?? [], true)) {
+                $reg['f'] = array_merge($reg['f'] ?? [], ['mês da entrega']);
+                $reg['g'] = ($reg['g'] ?? 0) + 2;
+            }
+        }
+
         // 'alt' = última ALTERAÇÃO de campo | 'atu' = última ATUALIZAÇÃO (conferência)
         $reg['alt']  = $a['updated_at'] ?? ($reg['alt'] ?? null);
         $reg['upd']  = $a['updated_at'] ?? null;
@@ -466,9 +483,12 @@ try {
                 $reg['tiGerado'] = 1;
             }
             // Campos que dependem da descrição ficam nulos, nunca inventados.
-            foreach (['d','a','af','ea','em','pt','pa','de','am','su','v','ba'] as $k) {
+            foreach (['d','a','af','pt','pa','de','am','su','v','ba'] as $k) {
                 if (!array_key_exists($k, $reg)) $reg[$k] = ($k === 'am') ? [] : null;
             }
+            // ea/em ficam de fora da limpeza: vêm da API e valem mesmo sem XLS.
+            if (!array_key_exists('ea', $reg)) $reg['ea'] = null;
+            if (!array_key_exists('em', $reg)) $reg['em'] = null;
             $reg['f'] = ['descrição não carregada'];
             $reg['g'] = 3;
             $reg['s'] = strtolower(($reg['ti'] ?? '') . ' ' . $reg['b'] . ' ' . $reg['t']);

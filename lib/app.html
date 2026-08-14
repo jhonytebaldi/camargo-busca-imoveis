@@ -729,6 +729,7 @@ const HOJE_ANO = _d.getFullYear(), HOJE_MES = _d.getMonth()+1;
 const midx = (a,m) => a*12+m;
 const HOJE = midx(HOJE_ANO,HOJE_MES);
 const fmtEntrega = x => x.ea ? (x.em ? MES_NOME[x.em]+'/'+x.ea : x.ea) : '—';
+const entregaSemMes = x => x.ea != null && x.em == null;
 
 // Dias desde a última alteração do cadastro no CRM.
 // Usa 'atu' (atualizado_em = data da conferência do anúncio no CRM).
@@ -757,18 +758,33 @@ function statusAtualizacao(x){
 }
 
 // Meses entre hoje e a entrega (negativo = já entregue).
+// Meses até a entrega. Devolve null quando o MÊS não foi cadastrado —
+// antes assumíamos dezembro, o que inflava o prazo: um imóvel com "2027"
+// virava 16 meses e o cálculo de parcelas prometia 16x quando o correto
+// poderia ser 5x. Melhor não responder do que responder errado.
 function mesesAte(x){
-  if(x.ea==null) return null;
-  return midx(x.ea, x.em||12) - HOJE;
+  if(x.ea == null || x.em == null) return null;
+  return midx(x.ea, x.em) - HOJE;
+}
+
+/** Só o ano é suficiente para saber se a entrega já passou. */
+function entregaFutura(x){
+  if(x.ea == null) return null;
+  if(x.ea > HOJE_ANO) return true;
+  if(x.ea < HOJE_ANO) return false;
+  if(x.em == null) return null;            // mesmo ano e sem mês: não dá para dizer
+  return x.em > HOJE_MES;
 }
 function jaEntregue(x){
-  const m = mesesAte(x);
-  return m==null ? null : m <= 0;
+  const f = entregaFutura(x);
+  return f == null ? null : !f;
 }
 // Parcelas que ainda cabem até a entrega, a partir de hoje.
+// Parcelas que ainda cabem até a entrega. Sem o mês cadastrado não dá para
+// calcular: a diferença entre janeiro e dezembro do mesmo ano são 11 parcelas.
 function parcelasPossiveis(x){
   const m = mesesAte(x);
-  return (m!=null && m > 0) ? m : null;
+  return (m != null && m > 0) ? m : null;
 }
 // Nº de parcelas exibido: o declarado no texto, senão o calculado.
 function parcelas(x){
@@ -783,7 +799,11 @@ function alertaParcelamento(x){
   const decl = x.pt, poss = parcelasPossiveis(x), ent = jaEntregue(x);
   const partes = [];
   const dataEnt = x.em ? String(x.em).padStart(2,'0')+'/'+x.ea : String(x.ea);
-  if(decl!=null && ent) partes.push(`descrição promete ${decl}x, mas o imóvel já foi entregue (${dataEnt})`);
+  if(decl != null && entregaSemMes(x)){
+    // Com o mês em branco não dá para dizer se o parcelamento cabe.
+    partes.push(`descrição promete ${decl}x, mas o mês da entrega não está cadastrado — impossível conferir`);
+  }
+  else if(decl!=null && ent) partes.push(`descrição promete ${decl}x, mas o imóvel já foi entregue (${dataEnt})`);
   else if(decl!=null && poss!=null){
     if(decl > poss) partes.push(`descrição promete ${decl}x, mas faltam só ${poss} meses até a entrega (${dataEnt})`);
     else if(decl < poss - 6) partes.push(`descrição diz ${decl}x, mas há ${poss} meses até a entrega — pode caber mais parcelas`);
@@ -1304,8 +1324,8 @@ function score(x, f){
   if(R.bairro && !f.bairros.includes(x.b)) return null;
   if(R.entrega){
     if(x.ea == null) return null;
-    if(f.edepois != null && midx(x.ea, x.em||12) < f.edepois) return null;
-    if(f.eantes  != null && midx(x.ea, x.em||1)  > f.eantes)  return null;
+    if(f.edepois != null && midx(x.ea, x.em || 12) < f.edepois) return null;
+    if(f.eantes  != null && midx(x.ea, x.em || 1)  > f.eantes)  return null;
   }
   if(R.parc && !(parcelas(x) != null && parcelas(x) >= f.parc)) return null;
   for(const a of f.amen) if(R['amen:'+a] && !x.am.includes(a)) return null;
@@ -1324,8 +1344,8 @@ function score(x, f){
   if(!R.area && f.amin!=null && x.a!=null && x.a < f.amin*0.75) return null;
   if(!R.entrega && f.edepois!=null && x.ea!=null && midx(x.ea, x.em||12) < f.edepois - 3) return null;
   if(!R.entrega && f.eantes!=null && x.ea!=null && midx(x.ea, x.em||1) > f.eantes + 3) return null;
-  if(f.entregue && !(x.ea != null && mesesAte(x) <= 0)) return null;
-  if(f.naoentregue && !(x.ea != null && mesesAte(x) > 0)) return null;
+  if(f.entregue && entregaFutura(x) !== false) return null;
+  if(f.naoentregue && entregaFutura(x) !== true) return null;
   const add=(w,ok,label,softOk,chave)=>{
     // Rígido já foi validado no portão acima: entra como acerto pleno e
     // ganha destaque no card, sem competir com os critérios flexíveis.
@@ -1372,8 +1392,8 @@ function score(x, f){
     const k = x.ea!=null ? midx(x.ea, x.em||1) : null;
     add(3.5, k!=null && k<=f.eantes, k==null?'entrega não cadastrada':'entrega até '+MES_NOME[((f.eantes-1)%12)+1]+'/'+Math.floor((f.eantes-1)/12), k==null || (k!=null && k<=f.eantes+3), 'entrega');
   }
-  if(f.entregue) add(3, mesesAte(x) <= 0, 'entregue em ' + fmtEntrega(x), false);
-  if(f.naoentregue) add(3, mesesAte(x) > 0, 'entrega em ' + fmtEntrega(x), false);
+  if(f.entregue) add(3, entregaFutura(x) === false, 'entregue em ' + fmtEntrega(x), false);
+  if(f.naoentregue) add(3, entregaFutura(x) === true, 'entrega em ' + fmtEntrega(x), false);
   const _px = parcelas(x);
   if(f.parc!=null) add(3, _px!=null && _px>=f.parc, f.parc+'x ou mais', _px!=null && _px>=f.parc-6, 'parc');
   if(f.temparc) add(2, parcelas(x)!=null, 'tem parcelamento', false);
@@ -1498,8 +1518,11 @@ function cardHTML({x,pct,hit,miss,motivo}, isAmp){
           <span><b>${x.a?x.a.toLocaleString('pt-BR')+'m²':'?'}</b>${x.af&&x.af!=='Área privativa'?' <i style="font-size:11px">('+x.af+')</i>':''}</span>
         </div>
         <div class="meta">
-          <span>Entrega: <b>${fmtEntrega(x)}</b>${jaEntregue(x)?' <i style="font-size:11px">(entregue)</i>':mesesAte(x)>0?` <i style="font-size:11px">(faltam ${mesesAte(x)} meses)</i>`:''}</span>
-          <span>Parcelas: <b>${parcelas(x)??'—'}${parcelas(x)?'x':''}</b>${parcelasFonte(x)?` <i style="font-size:11px">(${parcelasFonte(x)})</i>`:''}</span>
+          <span>Entrega: <b>${fmtEntrega(x)}</b>${
+            entregaSemMes(x) ? ' <i style="font-size:11px" title="O mês não está cadastrado no CRM">(mês não informado)</i>'
+            : jaEntregue(x) ? ' <i style="font-size:11px">(entregue)</i>'
+            : mesesAte(x) > 0 ? ` <i style="font-size:11px">(faltam ${mesesAte(x)} meses)</i>` : ''}</span>
+          ${parcelas(x) ? `<span>Parcelas: <b>${parcelas(x)}x</b> <i style="font-size:11px">(${parcelasFonte(x)})</i></span>` : ''}
           ${x.pa?`<span>Parcela até <b>${x.pa}</b></span>`:''}
         </div>
         <div class="tags">${tags.join('')}</div>
@@ -2194,7 +2217,7 @@ window.__app = {
 };
 
 // ---- auditoria ----
-const FIELDS = ['proprietário','telefone do proprietário','metragem (nenhuma fonte)','quartos','banheiros','vagas','fotos','características (campo)','título anúncio','descrição curta/vazia','data de entrega','entrega divergente','região/zona','parcelamento inconsistente'];
+const FIELDS = ['mês da entrega','proprietário','telefone do proprietário','metragem (nenhuma fonte)','quartos','banheiros','vagas','fotos','características (campo)','título anúncio','descrição curta/vazia','data de entrega','entrega divergente','região/zona','parcelamento inconsistente'];
 function countMissing(key){
   return D.filter(x=>x.f.concat(alertaParcelamento(x)?['parcelamento inconsistente']:[])
                        .some(m=>m.startsWith(key))).length;
