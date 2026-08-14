@@ -20,27 +20,48 @@ require_once __DIR__ . '/config.php';
 $inicio = microtime(true);
 
 /** Chamada autenticada à API do Robust. */
-function api_get(string $caminho) {
+function api_get(string $caminho, int $tentativas = 3) {
     $url = 'https://api.robustcrm.io/v1' . $caminho;
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 60,
-        CURLOPT_HTTPHEADER     => [
-            'X-Nickname: ' . ROBUST_NICKNAME,
-            'X-API-Key: '  . ROBUST_API_KEY,
-            'Accept: application/json',
-        ],
-    ]);
-    $resp = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $err  = curl_error($ch);
-    curl_close($ch);
-    if ($resp === false) throw new Exception("Falha de rede em $caminho: $err");
-    if ($code !== 200)   throw new Exception("HTTP $code em $caminho");
-    $j = json_decode($resp, true);
-    if ($j === null) throw new Exception("JSON inválido em $caminho");
-    return $j;
+    $ultimoErro = '';
+
+    // O sync faz cerca de 160 chamadas seguidas. Sem repetir, um unico 502 do
+    // servidor do Robust — que acontece de vez em quando — abortava tudo e o
+    // usuario via "O servidor recusou a sincronizacao".
+    for ($i = 1; $i <= $tentativas; $i++) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 60,
+            CURLOPT_CONNECTTIMEOUT => 15,
+            CURLOPT_HTTPHEADER     => [
+                'X-Nickname: ' . ROBUST_NICKNAME,
+                'X-API-Key: '  . ROBUST_API_KEY,
+                'Accept: application/json',
+            ],
+        ]);
+        $resp = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err  = curl_error($ch);
+        curl_close($ch);
+
+        if ($resp !== false && $code === 200) {
+            $j = json_decode($resp, true);
+            if ($j !== null) return $j;
+            $ultimoErro = "JSON invalido em $caminho";
+        } elseif ($resp === false) {
+            $ultimoErro = "falha de rede em $caminho: $err";
+        } else {
+            $ultimoErro = "HTTP $code em $caminho";
+            // Credencial errada ou caminho inexistente: repetir nao resolve.
+            if (in_array($code, [400, 401, 403, 404], true)) throw new Exception($ultimoErro);
+        }
+
+        if ($i < $tentativas) {
+            log_sync("aviso: $ultimoErro - tentando de novo ($i/$tentativas)");
+            sleep($i * 2);   // 2s, depois 4s
+        }
+    }
+    throw new Exception($ultimoErro . " (apos $tentativas tentativas)");
 }
 
 
