@@ -4,6 +4,10 @@ Ferramenta interna de busca no acervo, com dados vindos do CRM Robust.
 
 ## Como atualizar o servidor
 
+O servidor se atualiza sozinho: ao receber um envio no ramo main, o GitHub
+chama webhook.php e a instalacao acontece em segundos. Os comandos abaixo
+continuam disponiveis para conferir ou reverter na mao.
+
 1. Acesse `atualizar.php?ver=1` — mostra o que mudaria, sem instalar
 2. Se estiver certo, `atualizar.php?instalar=1`
 3. Se algo quebrar, `atualizar.php?voltar=1` restaura a versão anterior
