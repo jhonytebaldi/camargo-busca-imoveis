@@ -79,6 +79,9 @@ case 'salvar':
     break;
 
 case 'sync':
+    // ?completo=1 forca o sync pesado (detalhes e fotos). O padrao e o rapido,
+    // que cabe no tempo de uma requisicao web.
+    if (!empty($_GET['completo'])) $_GET['completo'] = 1;
     ob_start();
     try { include __DIR__ . '/sync.php'; $out = ob_get_clean(); }
     catch (Throwable $e) { ob_end_clean(); $out = json_encode(['ok' => false, 'erro' => $e->getMessage()]); }

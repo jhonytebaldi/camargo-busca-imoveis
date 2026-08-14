@@ -18,9 +18,19 @@ require_once __DIR__ . '/config.php';
 
 @set_time_limit(600);
 $inicio = microtime(true);
+$GLOBALS['SYNC_INICIO'] = $inicio;
+$GLOBALS['API_FALHAS'] = 0;
+$GLOBALS['API_FORA_DO_AR'] = false;
 
 /** Chamada autenticada à API do Robust. */
 function api_get(string $caminho, int $tentativas = 3) {
+    // Disjuntor: quando a API do Robust cai, TODAS as ~160 chamadas falham.
+    // Repetir cada uma 3 vezes com espera levaria o sync a mais de 15 minutos
+    // para no fim dar erro do mesmo jeito. Depois de algumas falhas seguidas,
+    // paramos na hora e dizemos o que esta acontecendo.
+    if (($GLOBALS['API_FORA_DO_AR'] ?? false)) {
+        throw new Exception('API do Robust fora do ar (interrompido apos falhas seguidas)');
+    }
     $url = 'https://api.robustcrm.io/v1' . $caminho;
     $ultimoErro = '';
 
@@ -46,7 +56,7 @@ function api_get(string $caminho, int $tentativas = 3) {
 
         if ($resp !== false && $code === 200) {
             $j = json_decode($resp, true);
-            if ($j !== null) return $j;
+            if ($j !== null) { $GLOBALS['API_FALHAS'] = 0; return $j; }
             $ultimoErro = "JSON invalido em $caminho";
         } elseif ($resp === false) {
             $ultimoErro = "falha de rede em $caminho: $err";
@@ -60,6 +70,11 @@ function api_get(string $caminho, int $tentativas = 3) {
             log_sync("aviso: $ultimoErro - tentando de novo ($i/$tentativas)");
             sleep($i * 2);   // 2s, depois 4s
         }
+    }
+    $GLOBALS['API_FALHAS'] = ($GLOBALS['API_FALHAS'] ?? 0) + 1;
+    if ($GLOBALS['API_FALHAS'] >= 4) {
+        $GLOBALS['API_FORA_DO_AR'] = true;
+        log_sync('API do Robust fora do ar — sync interrompido');
     }
     throw new Exception($ultimoErro . " (apos $tentativas tentativas)");
 }
@@ -337,8 +352,46 @@ try {
         }
     }
 
+    // Hospedagem compartilhada costuma cortar a requisicao por volta de 60s.
+    // Se o tempo apertar, paramos e gravamos o que ja temos, em vez de sermos
+    // mortos no meio e nao gravar nada.
+    $limiteSegundos = (php_sapi_name() === 'cli') ? 1800 : 200;
+
+    // MODO RAPIDO (padrao no botao da ferramenta)
+    // A listagem responde em ~2s e ja traz preco, quartos, status e data de
+    // entrega — o que muda no dia a dia. Ja 'atualizado_em', coordenadas e
+    // fotos so existem no endpoint de detalhe, uma chamada por imovel: sao
+    // ~160 chamadas que levam de 30s a 3min conforme o humor da API do Robust,
+    // tempo demais para uma requisicao web (o servidor corta antes).
+    // Entao: pelo navegador roda o modo rapido, reaproveitando esses dados; o
+    // cron noturno roda o modo completo, sem limite de tempo, e os atualiza.
+    $completo = (php_sapi_name() === 'cli') || !empty($_GET['completo']);
+    if (!$completo) log_sync('modo rapido: so a listagem, detalhes vem do cache');
+
     $comFoto = 0;
     foreach ($imoveis as &$im) {
+        if (!$completo) {
+            // Reaproveita o que o ultimo sync completo ja tinha lido.
+            $c = $fotosAnteriores[(int)$im['id']] ?? null;
+            if ($c) {
+                $im['_fotos'] = $c['fotos'] ?? [];
+                $im['_atu']   = $c['atu'] ?? null;
+                $im['_lat']   = $c['lat'] ?? null;
+                $im['_lng']   = $c['lng'] ?? null;
+                if (!empty($im['_fotos'])) $comFoto++;
+                continue;
+            }
+            // Imovel novo, que nunca passou por um sync completo: vale a pena
+            // buscar o detalhe dele, sao poucos.
+        }
+        if (!empty($GLOBALS['API_FORA_DO_AR'])) {
+            throw new Exception('A API do Robust parou de responder no meio da sincronizacao. '
+                . 'Nada foi alterado — tente de novo em alguns minutos.');
+        }
+        if (microtime(true) - $GLOBALS['SYNC_INICIO'] > $limiteSegundos) {
+            log_sync('tempo esgotado no laco de detalhes — seguindo com o que ja foi lido');
+            break;
+        }
         if ($somenteMerge) {
             // O cache de api.json já guarda _fotos, _atu, _lat e _lng.
             if (!empty($im['_fotos'])) $comFoto++;
@@ -353,7 +406,7 @@ try {
         //    muda essa data SEM alterar updated_at, que é justamente o caso
         //    que queremos capturar.
         try {
-            $d = api_get("/imoveis/$id");
+            $d = api_get("/imoveis/$id", 1);   // 1 tentativa: o laco ja tolera falha
             $d = $d['data'] ?? $d;
             $im['_atu'] = $d['atualizado_em'] ?? null;
             // Coordenadas: só ~25% dos imóveis têm, mas bastam algumas por
@@ -378,7 +431,7 @@ try {
             continue;
         }
         try {
-            $f = api_get("/imoveis/$id/files");
+            $f = api_get("/imoveis/$id/files", 1);
             $fotos = [];
             foreach (($f['data'] ?? []) as $arq) {
                 if (($arq['filetype'] ?? '') !== 'media') continue;
@@ -400,7 +453,7 @@ try {
         }
     }
     unset($im);
-    log_sync("imóveis com foto: $comFoto");
+    log_sync('imóveis com foto: ' . $comFoto . ($completo ? ' (sync completo)' : ' (modo rapido)'));
 
     file_put_contents(ARQ_API, json_encode($imoveis, JSON_UNESCAPED_UNICODE));
 
