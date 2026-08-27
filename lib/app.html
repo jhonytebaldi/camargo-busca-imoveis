@@ -91,8 +91,12 @@ h1{font-family:Fraunces,Georgia,serif;font-size:clamp(28px,5vw,42px);font-weight
 #q:focus{outline:none;border-color:var(--moss);box-shadow:0 0 0 3px rgba(47,93,79,.15)}
 button.go{padding:15px 26px;font:inherit;font-weight:600;background:var(--moss);color:#fff;border:2px solid var(--moss);border-radius:2px;cursor:pointer}
 button.go:hover{background:#264c40}
-.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-.chip{padding:6px 12px;font-size:13px;background:transparent;border:1px solid var(--line);border-radius:20px;cursor:pointer;color:var(--mute);font-family:inherit}
+.chips{display:flex;gap:8px;margin-top:12px;overflow-x:auto;padding-bottom:4px;
+  scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+.chips::-webkit-scrollbar{height:5px}
+.chips::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+.chip{padding:6px 12px;font-size:13px;background:transparent;border:1px solid var(--line);
+  border-radius:20px;cursor:pointer;color:var(--mute);font-family:inherit;white-space:nowrap;flex:0 0 auto}
 .chip:hover{border-color:var(--moss);color:var(--moss)}
 .parsed{margin:18px 0;padding:14px 16px;background:var(--card);border-left:3px solid var(--gold);font-size:13.5px;display:none}
 .parsed b{font-family:'JetBrains Mono',monospace;font-size:12.5px;background:rgba(47,93,79,.09);padding:2px 7px;border-radius:2px;margin-right:6px;display:inline-block;margin-bottom:4px}
@@ -114,6 +118,10 @@ button.go:hover{background:#264c40}
 .count{font-size:13px;color:var(--mute);margin:20px 0 12px;font-weight:500;letter-spacing:.04em;text-transform:uppercase}
 .mapawrap{display:none;margin:18px 0 6px;border:1px solid var(--line);border-radius:3px;overflow:hidden}
 .mapawrap.on{display:block}
+/* Quando o mapa esta oculto, a barra continua na tela — senao o botao de
+   voltar a exibir sumiria junto e nao haveria como reabrir. */
+.mapawrap.fechado #mapa{display:none}
+.mapawrap.fechado .mapabarra{border-bottom:none}
 .mapabarra{display:flex;justify-content:space-between;align-items:center;gap:12px;
   padding:9px 14px;background:var(--card);border-bottom:1px solid var(--line);font-size:13px;color:var(--mute)}
 .mapabarra button{padding:5px 12px;font:inherit;font-size:12.5px;background:none;
@@ -247,18 +255,17 @@ td.c{font-family:'JetBrains Mono',monospace;font-weight:600}
     <input id="q" placeholder="ex.: apartamento na zona sul até 400 mil, 2 quartos, com piscina" autocomplete="off">
     <button class="go" id="btn">Buscar</button>
   </div>
+  <div class="parsed" id="parsed"></div>
   <div class="chips">
     <button class="chip">geminado 2 quartos até 350 mil</button>
-    <button class="chip">apartamento zona leste com elevador e churrasqueira</button>
-    <button class="chip">sobrado 3 quartos 2 vagas Vila Nova</button>
-    <button class="chip">acima de 100m² até 500 mil</button>
-    <button class="chip">suíte, aceita FGTS, na planta</button>
-    <button class="chip">imóveis que entreguem de dezembro de 2027 pra frente</button>
-    <button class="chip">pronto para morar até 400 mil</button>
-    <button class="chip">parcelamento em 24x ou mais</button>
     <button class="chip">zona sul até 400 mil !3 quartos</button>
-    <button class="chip">apartamento !com elevador até 450 mil</button>
-    <button class="chip">pronto no Costa e Silva</button>
+    <button class="chip">geminado abertura acima de 3,5</button>
+    <button class="chip">pronto para morar até 400 mil</button>
+    <button class="chip">na planta parcelamento em 24x</button>
+    <button class="chip">perto do Garten Shopping</button>
+    <button class="chip">apartamento zona leste com elevador</button>
+    <button class="chip">acima de 100m² até 500 mil</button>
+    <button class="chip">sem piscina até 300 mil</button>
     <button class="chip">1346</button>
   </div>
   <div class="hint">
@@ -270,7 +277,6 @@ td.c{font-family:'JetBrains Mono',monospace;font-weight:600}
     <b>bairro</b>, uma <b>zona</b> (<code>zona leste</code>), ou usar
     <code>planta</code> / <code>pronto</code> para filtrar por entrega.
   </div>
-  <div class="parsed" id="parsed"></div>
   <div id="mapawrap" class="mapawrap">
     <div class="mapabarra">
       <span id="mapainfo"></span>
@@ -1851,7 +1857,8 @@ function atualizarMapa(lista){
   const pts = lista.filter(r => r.x.lat && r.x.lng);
   const semCoord = lista.length - pts.length;
 
-  wrap.classList.toggle('on', mapaAberto);
+  wrap.classList.add('on');                       // a barra fica sempre
+  wrap.classList.toggle('fechado', !mapaAberto);  // só o mapa some
   if(btn) btn.textContent = mapaAberto ? 'Ocultar mapa' : 'Mostrar mapa';
   if(info) info.innerHTML = pts.length
     ? `<b>${pts.length}</b> no mapa` + (semCoord ? ` · ${semCoord} sem posição cadastrada` : '')
@@ -1946,7 +1953,7 @@ function ligarBotaoAmpliacao(){
 function search(){
   mostrandoAmpliacao = false;
   const mw = document.getElementById('mapawrap');
-  if(mw) mw.classList.remove('on');
+  if(mw){ mw.classList.remove('on'); mw.classList.remove('fechado'); }
   const raw = document.getElementById('q').value.trim();
   if(!raw){ document.getElementById('parsed').style.display='none'; document.getElementById('results').innerHTML=''; document.getElementById('count').textContent=''; return; }
   const f = parseQuery(raw);
