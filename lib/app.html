@@ -1046,7 +1046,11 @@ function wordsToPrice(t, after){
 const RIGIDO_PAL = 'exatamente|obrigatori\\w*|precisa ter|tem que ter|nao abro mao|inegociavel|so com|somente com|apenas com';
 
 function parseQuery(raw){
-  let t = ' ' + norm(raw).replace(/[,;]/g,' ') + ' ';
+  // A virgula separa criterios ("2 quartos, zona sul"), mas tambem e a
+  // decimal em portugues ("3,5m de abertura"). Convertemos a decimal em
+  // ponto ANTES de tratar as demais como separador — senao "3,5" virava
+  // "3 5" e o parser lia 5.
+  let t = ' ' + norm(raw).replace(/(\d)\s*,\s*(\d)/g, '$1.$2').replace(/[,;]/g,' ') + ' ';
   const f = {amen:[], bairros:[], rigido:{}, negados:[], negTipo:null};
 
   // ---- negação ----
@@ -1079,7 +1083,7 @@ function parseQuery(raw){
              + '|salao de festas|portaria|quintal|lavabo|closet|mobiliado|financia\\w*|fgts'
              + '|suite|mobilia\\w*|ar condicionado|area pet|condominio fechado'
              + '|apartamento|sobrado|geminado|casa|terreno'
-             + '|(?:ate|acima de|a partir de|no maximo|no minimo|minimo|maximo)\\s*r?\\$?\\s*[\\d.,]+\\s*(?:mil|k|milhao|milhoes|mi)?';
+             + '|(?:ate|acima de|a partir de|no maximo|no minimo|minimo|maximo)\\s*r?\\$?\\s*[\\d.,]+\\s*(?:milhoes|milhao|mil|k|mi)?';
   const marcados = [];
   const CONECT = '(?:com|de|em|no|na|ate|com no minimo)?\\s*';
   const capt = new RegExp('[!*]\\s*'+CONECT+'('+CRIT+')','g');
@@ -1098,31 +1102,48 @@ function parseQuery(raw){
   // Distâncias ("até 1 km", "500 m") não podem virar preço: o "k" de km era
   // lido como "mil" e "até 1 km" virava "até R$ 1.000". O parser de preço
   // trabalha numa cópia do texto sem esses trechos.
-  const tp = t.replace(/\d+(?:[.,]\d+)?\s*(?:km|kms|m|mts|metros)\b/g, ' ');
+  // O parser de preco trabalha numa copia sem os numeros que pertencem a
+  // outros criterios. Sem isso, "ate 15x" virava "ate R$ 15.000" e
+  // "3.5m de abertura" entrava como preco.
+  const tp = t
+    .replace(/\d+(?:[.,]\d+)?\s*(?:km|kms|m|mts|metros)\b/g, ' ')   // distancias
+    .replace(/\d+(?:[.,]\d+)?\s*(?:x|vezes|parcelas)\b/g, ' ')      // parcelamento
+    .replace(/abertura[^\d]{0,14}\d+(?:[.,]\d+)?/g, ' ')            // abertura
+    .replace(/\d+(?:[.,]\d+)?\s*(?:de\s+)?abertura/g, ' ')
+    .replace(/\b(?:19|20)\d{2}\b/g, ' ');                          // anos
 
   // preço
+  // Em portugues o ponto separa milhar ("400.000") mas tambem pode ser a
+  // decimal ja convertida da virgula ("1,5 milhao" -> "1.5"). Distinguimos
+  // pelo formato: ponto seguido de exatamente 3 digitos e milhar.
   const money = s => {
-    let n = parseFloat(s.replace(/\./g,'').replace(',','.'));
-    return n;
+    s = String(s).trim();
+    if (/^\d{1,3}(\.\d{3})+$/.test(s)) return parseFloat(s.replace(/\./g, ''));   // 1.500.000
+    if (/^\d+[.,]\d{1,2}$/.test(s)) return parseFloat(s.replace(',', '.'));        // 1,5  /  1.5
+    return parseFloat(s.replace(/\./g, '').replace(',', '.'));
   };
   let m;
   const ANO_RE = /^(20[2-4]\d)$/;
-  if((m = tp.match(/(?:ate|abaixo de|no maximo|maximo|menos de|max)\s*(?:r\$\s*)?([\d.,]+)\s*(mil|k|milhao|milhoes|mi)?/))
+  if((m = tp.match(/(?:ate|abaixo de|no maximo|maximo|menos de|max)\s*(?:r\$\s*)?([\d.,]+)\s*(milhoes|milhao|mil|k|mi)?/))
      && !(ANO_RE.test(m[1]) && !m[2])){
     let n = money(m[1]);
     const u = m[2]||'';
-    if(/mil|k/.test(u)) n*=1000; else if(/milh|mi/.test(u)) n*=1000000;
+    // Testa milhao ANTES de mil: a palavra "milhao" contem "mil", entao a
+    // ordem inversa fazia "1,5 milhao" virar R$ 1.500.
+    if(/^(milh|mi$)/.test(u)) n*=1000000; else if(/^(mil|k)$/.test(u)) n*=1000;
     else if(n<10000) n*=1000;
     f.pmax = n;
   } else {
     const wp = wordsToPrice(tp, '(?:ate|abaixo de|no maximo|maximo|menos de)');
     if(wp) f.pmax = wp;
   }
-  if((m = tp.match(/(?:acima de|a partir de|minimo|mais de|desde)\s*(?:r\$\s*)?([\d.,]+)\s*(mil|k|milhao|milhoes|mi)?/))
+  if((m = tp.match(/(?:acima de|a partir de|minimo|mais de|desde)\s*(?:r\$\s*)?([\d.,]+)\s*(milhoes|milhao|mil|k|mi)?/))
      && !(ANO_RE.test(m[1]) && !m[2])){
     let n = money(m[1]);
     const u = m[2]||'';
-    if(/mil|k/.test(u)) n*=1000; else if(/milh|mi/.test(u)) n*=1000000;
+    // Testa milhao ANTES de mil: a palavra "milhao" contem "mil", entao a
+    // ordem inversa fazia "1,5 milhao" virar R$ 1.500.
+    if(/^(milh|mi$)/.test(u)) n*=1000000; else if(/^(mil|k)$/.test(u)) n*=1000;
     else if(n<10000) n*=1000;
     if(n > 5000) f.pmin = n;
   } else {
@@ -1130,20 +1151,20 @@ function parseQuery(raw){
     if(wp) f.pmin = wp;
   }
   // faixas: "entre 300 e 500 mil", "de 300 a 400 mil", "300 a 400 mil"
-  if(m = tp.match(/(?:entre|de)\s*(?:r\$\s*)?([\d.,]+)\s*(mil|k)?\s*(?:e|a|ate|-)\s*(?:r\$\s*)?([\d.,]+)\s*(mil|k|milhao|milhoes|mi)?/)
-     || (m = tp.match(/(?:^|\s)(?:r\$\s*)?([\d.,]+)\s*(mil|k)?\s*(?:a|ate|-)\s*(?:r\$\s*)?([\d.,]+)\s*(mil|k|milhao|milhoes|mi)\b/))){
+  if(m = tp.match(/(?:entre|de)\s*(?:r\$\s*)?([\d.,]+)\s*(mil|k)?\s*(?:e|a|ate|-)\s*(?:r\$\s*)?([\d.,]+)\s*(milhoes|milhao|mil|k|mi)?/)
+     || (m = tp.match(/(?:^|\s)(?:r\$\s*)?([\d.,]+)\s*(mil|k)?\s*(?:a|ate|-)\s*(?:r\$\s*)?([\d.,]+)\s*(milhoes|milhao|mil|k|mi)\b/))){
     let a=money(m[1]), b=money(m[3]);
     const ua=m[2]||'', ub=m[4]||'';
-    if(/milh|^mi$/.test(ub)) b*=1000000; else if(/mil|k/.test(ub)||b<10000) b*=1000;
-    if(/mil|k/.test(ua)) a*=1000; else if(a<10000) a*=1000;
+    if(/^(milh|mi$)/.test(ub)) b*=1000000; else if(/^(mil|k)$/.test(ub)||b<10000) b*=1000;
+    if(/^(mil|k)$/.test(ua)) a*=1000; else if(a<10000) a*=1000;
     if(a>1000 && b>1000){ f.pmin=Math.min(a,b); f.pmax=Math.max(a,b); }
   }
 
   // Preço solto, sem "até": "apartamento 400 mil" = teto de 400 mil.
   // Exige a unidade (mil/k/milhão) para não confundir com quartos ou ano.
-  if(f.pmax==null && f.pmin==null && (m = tp.match(/(?:^|\s)(?:r\$\s*)?([\d.,]+)\s*(mil|k|milhao|milhoes|mi)\b/))){
+  if(f.pmax==null && f.pmin==null && (m = tp.match(/(?:^|\s)(?:r\$\s*)?([\d.,]+)\s*(milhoes|milhao|mil|k|mi)\b/))){
     let n = money(m[1]);
-    if(/milh|^mi$/.test(m[2])) n*=1000000; else n*=1000;
+    if(/^(milh|mi$)/.test(m[2])) n*=1000000; else n*=1000;
     if(n >= 20000) { f.pmax = n; f.pmaxImplicito = true; }
   }
   if(f.pmax==null && f.pmin==null){
