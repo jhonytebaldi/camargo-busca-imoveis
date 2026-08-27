@@ -147,7 +147,10 @@ case 'compartilhar':
 
     // Campos permitidos. Tudo que não estiver aqui NÃO vai para a página do
     // cliente: proprietário, captador, datas, pendências, telefone, coordenadas.
-    $publicos = ['c','ti','t','b','ci','r','p','q','su','ba','v','a','ea','em','d','fotos','am'];
+    // Lista fechada do que pode ir para a pagina do cliente. Tudo que nao
+    // estiver aqui fica de fora — inclusive 'obs' (observacoes internas, que
+    // trazem comissao, bonus e margem de negociacao).
+    $publicos = ['c','ti','t','b','ci','r','p','q','su','ba','v','a','ea','em','d','fotos','am','ab'];
 
     // Pontos de referência: entram já calculados, para a página do cliente não
     // precisar de nenhuma lógica. Coordenada nos dois lados vira distância;
@@ -201,9 +204,35 @@ case 'compartilhar':
     }
     if (!$itens) { http_response_code(404); echo json_encode(['erro' => 'imóveis não encontrados']); exit; }
 
+    // Quem enviou e para quem. O login e compartilhado, entao esses dados vem
+    // do formulario a cada envio, nao da sessao.
+    // Sem mbstring de proposito: nem toda hospedagem tem a extensao, e um
+    // corte no meio de um caractere acentuado quebraria o JSON.
+    $lim80 = function ($v) {
+        $v = trim(preg_replace('/\s+/', ' ', (string)$v));
+        if (function_exists('mb_substr')) return mb_substr($v, 0, 80);
+        if (strlen($v) <= 80) return $v;
+        $corte = substr($v, 0, 80);
+        // Recua ate nao terminar no meio de um caractere multibyte.
+        while (strlen($corte) > 0 && (ord($corte[strlen($corte)-1]) & 0xC0) === 0x80) {
+            $corte = substr($corte, 0, -1);
+        }
+        if (strlen($corte) > 0 && (ord($corte[strlen($corte)-1]) & 0xC0) === 0xC0) {
+            $corte = substr($corte, 0, -1);
+        }
+        return $corte;
+    };
+    $corretor = [
+        'nome' => $lim80($j['corretor_nome'] ?? ''),
+        'tel'  => $lim80($j['corretor_tel'] ?? ''),
+    ];
+    $cliente = $lim80($j['cliente'] ?? '');
+
     $token = bin2hex(random_bytes(16));
     file_put_contents(DATA_DIR . '/sel_' . $token . '.json',
-        json_encode(['criado_em' => date('c'), 'imoveis' => $itens], JSON_UNESCAPED_UNICODE));
+        json_encode(['criado_em' => date('c'), 'imoveis' => $itens,
+                     'corretor' => $corretor, 'cliente' => $cliente],
+                    JSON_UNESCAPED_UNICODE));
 
     // Limpa seleções com mais de 90 dias.
     foreach (glob(DATA_DIR . '/sel_*.json') as $velho) {

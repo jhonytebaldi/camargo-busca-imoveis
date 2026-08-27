@@ -155,6 +155,14 @@ button.go:hover{background:#264c40}
   border-radius:3px;color:#fff;text-decoration:none;display:inline-block}
 .selbar .btn:hover{background:rgba(255,255,255,.12)}
 .selbar .btn.prim{background:var(--moss-lt);border-color:var(--moss-lt)}
+.formenvio{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.formenvio label{display:flex;flex-direction:column;gap:4px;font-size:11px;
+  color:rgba(255,255,255,.65);text-transform:uppercase;letter-spacing:.05em}
+.formenvio input{padding:8px 11px;font-family:inherit;font-size:13.5px;
+  border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.12);color:#fff;
+  border-radius:3px;min-width:145px;text-transform:none;letter-spacing:0}
+.formenvio input::placeholder{color:rgba(255,255,255,.4)}
+.formenvio input:focus{outline:none;border-color:var(--moss-lt);background:rgba(255,255,255,.18)}
 .card.full{border-left:4px solid var(--moss)}
 .cod{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--mute);letter-spacing:.06em}
 .ttl{font-family:Fraunces,serif;font-size:19px;font-weight:600;margin:3px 0 8px;line-height:1.25}
@@ -174,6 +182,15 @@ button.go:hover{background:#264c40}
 details.desc{margin-top:10px}
 details.desc summary{font-size:12.5px;color:var(--moss);cursor:pointer;font-weight:500}
 details.desc p{font-size:13px;color:var(--mute);margin:8px 0 0;line-height:1.55}
+details.obs{margin-top:8px}
+details.obs summary{font-size:12.5px;color:var(--clay);cursor:pointer;font-weight:600;
+  list-style:none;display:flex;align-items:center;gap:6px}
+details.obs summary::-webkit-details-marker{display:none}
+details.obs summary i{font-weight:400;font-style:normal;color:var(--mute);font-size:11.5px}
+details.obs .olho{font-size:13px;filter:grayscale(1);opacity:.7}
+details.obs[open] .olho{filter:none;opacity:1}
+details.obs p{font-size:13px;color:#3d4a44;margin:9px 0 0;line-height:1.6;white-space:pre-line;
+  background:rgba(180,81,47,.06);border-left:3px solid var(--clay);padding:10px 13px;border-radius:2px}
 .empty{padding:40px;text-align:center;color:var(--mute)}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}
 .stat{background:var(--card);border:1px solid var(--line);padding:16px}
@@ -1250,6 +1267,15 @@ function parseQuery(raw){
   // fica de fora, porque não dá para afirmar que ainda está na planta.
   if(/\bplanta\b|em obra|em construcao|nao entregue|lancamento/.test(t) && !f.edepois) f.naoentregue = true;
 
+  // ---- abertura (largura do terreno do geminado) ----
+  let ma;
+  if(/\babertura\b/.test(t)){
+    f.querAbertura = true;
+    if(ma = t.match(/abertura[^\d]{0,14}(?:ate|no maximo|maximo)\s*(\d{1,2}(?:[.,]\d{1,2})?)/)) f.abMax = parseFloat(ma[1].replace(',','.'));
+    else if(ma = t.match(/abertura[^\d]{0,14}(\d{1,2}(?:[.,]\d{1,2})?)/)) f.abMin = parseFloat(ma[1].replace(',','.'));
+    else if(ma = t.match(/(\d{1,2}(?:[.,]\d{1,2})?)\s*(?:m|metros)?\s*(?:de\s+)?abertura/)) f.abMin = parseFloat(ma[1].replace(',','.'));
+  }
+
   // ---- parcelamento ----
   let pm;
   if(pm = t.match(/(?:parcel\w*|dividir?|vezes|entrada)[^.]{0,20}?(?:em|ate|no minimo|minimo|acima de|mais de)\s*(\d{1,3})\s*(?:x|vezes|parcelas)/)) f.parc = +pm[1];
@@ -1324,7 +1350,23 @@ function score(x, f){
     if(f.amin != null && x.a < f.amin) return null;
     if(f.amax != null && x.a > f.amax) return null;
   }
-  if(R.tipo && !(x.t===f.tipo || (f.tipo==='Geminado'&&x.t.includes('Geminad')) || (f.tipo==='Casa'&&x.t.includes('Casa')))) return null;
+  // "Geminado" e caracteristica, nao tipo: 60 imoveis dizem geminado no
+  // titulo mas estao cadastrados como Sobrado ou Casa no CRM.
+  const casaTipo = (t) => t==='Geminado' ? (x.gem===1 || x.t.includes('Geminad'))
+                   : t==='Casa' ? x.t.includes('Casa')
+                   : x.t===t;
+  if(R.tipo && !casaTipo(f.tipo)) return null;
+
+  // Abertura: apartamento nao tem. Quem nao tem a medida cadastrada continua
+  // aparecendo, com aviso — a maioria dos geminados so nao teve o dado
+  // preenchido, e esconde-los tiraria opcoes boas do corretor.
+  if(f.querAbertura){
+    if(/partamento/i.test(x.t)) return null;
+    if(x.ab != null){
+      if(f.abMin != null && x.ab < f.abMin) return null;
+      if(f.abMax != null && x.ab > f.abMax) return null;
+    }
+  }
   if(R.reg    && x.r !== f.reg) return null;
   if(R.bairro && !f.bairros.includes(x.b)) return null;
   if(R.entrega){
@@ -1385,7 +1427,13 @@ function score(x, f){
       ? (d < 1 ? `a ${Math.round(d*1000)} m do ${f.ref.n}` : `a ${d.toFixed(1)} km do ${f.ref.n}`)
       : `mesmo bairro do ${f.ref.n}`, false);
   }
-  if(f.tipo) add(3, x.t===f.tipo || (f.tipo==='Geminado'&&x.t.includes('Geminad')) || (f.tipo==='Casa'&&x.t.includes('Casa')), f.tipo, x.t.includes(f.tipo.split(' ')[0]), 'tipo');
+  if(f.tipo) add(3, casaTipo(f.tipo), f.tipo, x.t.includes(f.tipo.split(' ')[0]), 'tipo');
+  if(f.querAbertura){
+    if(x.ab != null){
+      const ok = (f.abMin == null || x.ab >= f.abMin) && (f.abMax == null || x.ab <= f.abMax);
+      add(3, ok, 'abertura ' + String(x.ab).replace('.', ',') + 'm', false);
+    } else hit.push('⚠ abertura não informada');
+  }
   if(f.reg) add(3, x.r===f.reg, x.r==null?'região não cadastrada':'zona '+f.reg.toLowerCase(), x.r==null, 'reg');
   if(f.bairros.length) add(3.5, f.bairros.includes(x.b), f.bairros.join('/'), false, 'bairro');
   if(f.cidade) add(2, x.ci===f.cidade, f.cidade, false);
@@ -1414,7 +1462,8 @@ function score(x, f){
     // busca puramente textual
     const words = f.raw.split(/\s+/).filter(w=>w.length>3);
     if(!words.length) return null;
-    const found = words.filter(w=>x.s.includes(w)||norm(x.b).includes(w)||norm(x.t).includes(w));
+    const found = words.filter(w=>x.s.includes(w)||norm(x.b).includes(w)||norm(x.t).includes(w)
+                                 ||(x.obs && norm(x.obs).includes(w)));
     if(!found.length) return null;
     return {pct: found.length/words.length, hit: found, miss: []};
   }
@@ -1473,7 +1522,9 @@ function render(list, f){
            ['area_desc','Maior área'],['recente','Mais recentes']]
           .map(([v,l])=>`<button class="ordb${(ordenacao||'')===v?' on':''}" data-ord="${v}">${l}</button>`).join('')}
        </div>`;
-  atualizarMapa(list);
+  // So os que atendem a TODOS os criterios: um pino nao tem como dizer
+  // "quase", e passaria a impressao de que o imovel serve.
+  atualizarMapa(list.filter(r => r.pct >= 0.999));
   document.querySelectorAll('.ordb[data-ord]').forEach(b => b.onclick = () => {
     ordenacao = b.dataset.ord || null;
     aplicarOrdem(ultimaLista); aplicarOrdem(ampliados);
@@ -1557,6 +1608,7 @@ function cardHTML({x,pct,hit,miss,motivo}, isAmp){
           ${x.atu && x.alt && fmtData(x.atu)!==fmtData(x.alt)?`<span style="font-size:11.5px">alterado em ${fmtData(x.alt)}</span>`:''}
         </div>
         ${x.d?`<details class="desc"><summary>Ver descrição</summary><p>${x.d.replace(/</g,'&lt;')}</p></details>`:''}
+        ${x.obs?`<details class="obs"><summary><span class="olho">👁</span> Observações internas <i>— não vão para o cliente</i></summary><p>${x.obs.replace(/</g,'&lt;')}</p></details>`:''}
       </div>
       <div class="right">
         <div class="price">${brl(x.p)}</div>
@@ -1604,24 +1656,55 @@ function atualizarBarraSelecao(){
   document.getElementById('compSel').onclick = compartilharSelecao;
 }
 
-async function compartilharSelecao(){
+/* Pergunta quem envia e para quem antes de gerar o link.
+   O login e compartilhado, entao o nome do corretor nao pode vir da sessao.
+   Fica guardado NESTE navegador: cada corretor digita uma vez. O nome do
+   cliente muda a cada atendimento e por isso nunca e lembrado.          */
+function corretorSalvo(){
+  try{ return JSON.parse(localStorage.getItem('corretor') || '{}'); }catch(_){ return {}; }
+}
+
+function compartilharSelecao(){
   const cods = [...selecao];
   if(!cods.length) return;
+  const c = corretorSalvo();
+  const esc = v => String(v||'').replace(/"/g,'&quot;');
+  document.getElementById('selbar').innerHTML = `
+    <form class="formenvio" id="formEnvio">
+      <label>Cliente<input id="fCliente" placeholder="quem vai receber" autocomplete="off"></label>
+      <label>Seu nome<input id="fNome" value="${esc(c.nome)}" placeholder="corretor" autocomplete="off"></label>
+      <label>Seu WhatsApp<input id="fTel" value="${esc(c.tel)}" placeholder="(47) 9..." autocomplete="off"></label>
+      <button type="submit" class="prim">Gerar link (${cods.length})</button>
+      <button type="button" id="cancelaEnvio" class="lim">Cancelar</button>
+    </form>`;
+  document.getElementById('cancelaEnvio').onclick = atualizarBarraSelecao;
+  const foco = document.getElementById(c.nome ? 'fCliente' : 'fNome');
+  if(foco) foco.focus();
+  document.getElementById('formEnvio').onsubmit = ev => {
+    ev.preventDefault();
+    const dados = {
+      cliente: document.getElementById('fCliente').value.trim(),
+      corretor_nome: document.getElementById('fNome').value.trim(),
+      corretor_tel: document.getElementById('fTel').value.trim(),
+    };
+    try{ localStorage.setItem('corretor', JSON.stringify({nome:dados.corretor_nome, tel:dados.corretor_tel})); }catch(_){}
+    gerarLink(cods, dados);
+  };
+}
+
+async function gerarLink(cods, dados){
   const bar = document.getElementById('selbar');
   const voltar = () => { const b=document.getElementById('voltarSel'); if(b) b.onclick = atualizarBarraSelecao; };
 
-  // Tenta duas vezes: "Failed to fetch" costuma ser oscilação de rede ou o
-  // servidor demorando na primeira chamada. Uma segunda tentativa resolve
-  // sem obrigar o corretor a refazer a seleção.
   async function tentar(){
     const r = await fetch('api.php?acao=compartilhar', {
       method:'POST', credentials:'same-origin',
-      headers:{'Content-Type':'application/json'}, body: JSON.stringify({cods})
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify({cods, ...dados})
     });
     if(r.status === 401){ const e = new Error('sessao'); e.tipo='sessao'; throw e; }
     let j;
     try{ j = await r.json(); }
-    catch(_){ const e = new Error('resposta inválida do servidor (HTTP '+r.status+')'); e.tipo='servidor'; throw e; }
+    catch(_){ const e = new Error('resposta invalida (HTTP '+r.status+')'); e.tipo='servidor'; throw e; }
     if(!r.ok || !j.ok){ const e = new Error(j.erro || ('servidor respondeu '+r.status)); e.tipo='servidor'; throw e; }
     return j;
   }
@@ -1632,7 +1715,7 @@ async function compartilharSelecao(){
     try{ j = await tentar(); }
     catch(err){
       ultimo = err;
-      if(err.tipo === 'sessao' || err.tipo === 'servidor') break;   // não adianta repetir
+      if(err.tipo === 'sessao' || err.tipo === 'servidor') break;
       if(i === 0){ bar.innerHTML = '<span>Rede instável, tentando de novo…</span>';
                    await new Promise(r => setTimeout(r, 1200)); }
     }
@@ -1641,22 +1724,21 @@ async function compartilharSelecao(){
   if(!j){
     let msg;
     if(ultimo && ultimo.tipo === 'sessao')
-      msg = 'Sua sessão expirou. <a href="login.php" style="color:#9fd3c2">Entre de novo</a> — a seleção se perde, mas os códigos estão aqui: ' + cods.join(', ');
-    else if(ultimo && ultimo.tipo === 'servidor')
-      msg = 'O servidor recusou: ' + ultimo.message;
-    else
-      msg = 'Não consegui falar com o servidor. Verifique a conexão e tente de novo. Códigos selecionados: ' + cods.join(', ');
+      msg = 'Sua sessão expirou. <a href="login.php" style="color:#9fd3c2">Entre de novo</a> — códigos: ' + cods.join(', ');
+    else if(ultimo && ultimo.tipo === 'servidor') msg = 'O servidor recusou: ' + ultimo.message;
+    else msg = 'Não consegui falar com o servidor. Códigos: ' + cods.join(', ');
     bar.innerHTML = `<span style="color:#ffb4a0">${msg}</span>
       <button id="tentarDeNovo" class="prim">Tentar de novo</button>
       <button id="voltarSel" class="lim">Voltar</button>`;
     const td = document.getElementById('tentarDeNovo');
-    if(td) td.onclick = compartilharSelecao;
+    if(td) td.onclick = () => gerarLink(cods, dados);
     voltar();
     return;
   }
 
+  const ola = dados.cliente ? `Oi, ${dados.cliente}! ` : '';
   const zap = 'https://wa.me/?text=' + encodeURIComponent(
-    `Separei ${j.total} ${j.total>1?'opções':'opção'} para você dar uma olhada:\n${j.url}`);
+    `${ola}Separei ${j.total} ${j.total>1?'opções':'opção'} para você dar uma olhada:\n${j.url}`);
   bar.innerHTML = `<span><b>Link pronto</b> (${j.total})</span>
     <a class="btn prim" href="${zap}" target="_blank" rel="noopener">Enviar no WhatsApp</a>
     <button id="copiar">Copiar link</button>
@@ -1773,7 +1855,8 @@ function atualizarMapa(lista){
   if(btn) btn.textContent = mapaAberto ? 'Ocultar mapa' : 'Mostrar mapa';
   if(info) info.innerHTML = pts.length
     ? `<b>${pts.length}</b> no mapa` + (semCoord ? ` · ${semCoord} sem posição cadastrada` : '')
-    : 'Nenhum destes imóveis tem posição cadastrada';
+      + ' <i style="font-size:11.5px">— só os que atendem a tudo</i>'
+    : 'Nenhum imóvel compatível tem posição cadastrada';
 
   if(mapaAberto) desenharMapa(pts);
 }
@@ -1873,6 +1956,9 @@ function search(){
   if(f.cods) B('código: ' + f.cods.join(', '));
   if(f.ref) B(`perto de ${f.ref.n} (até ${f.refRaio} km)`);
   if(f.tipo) B('tipo: '+f.tipo, 'tipo');
+  if(f.querAbertura) B(f.abMin!=null ? `abertura ≥ ${String(f.abMin).replace('.',',')}m`
+                     : f.abMax!=null ? `abertura ≤ ${String(f.abMax).replace('.',',')}m`
+                     : 'com abertura informada');
   if(f.q) B(f.q+' quartos', 'q');
   if(f.qmin!=null && f.qmax!=null) B(`${f.qmin} a ${f.qmax} quartos`);
   else if(f.qmin!=null) B(`${f.qmin}+ quartos`);
@@ -2303,7 +2389,7 @@ document.addEventListener('click', _aoTocarFoto, true);
 const _btMapa = document.getElementById('btmapa');
 if(_btMapa) _btMapa.onclick = () => {
   mapaAberto = !mapaAberto;
-  atualizarMapa(ultimaLista.slice(0, 50));
+  atualizarMapa(ultimaLista.slice(0, 50).filter(r => r.pct >= 0.999));
 };
 
 document.getElementById('galX').onclick    = galFechar;

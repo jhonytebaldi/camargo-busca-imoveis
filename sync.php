@@ -279,6 +279,34 @@ $GLOBALS['BAIRRO_COORD'] = [
 // proximidade nelas usa um raio maior — senão não devolveria nada.
 $GLOBALS['BAIRRO_RURAL'] = ['estrada da ilha', 'estrada bonita', 'rio da prata', 'quiriri'];
 
+/** Limpa HTML e entidades de um texto vindo do CRM. */
+function limpa_texto($t) {
+    $t = html_entity_decode(html_entity_decode((string)$t, ENT_QUOTES, 'UTF-8'), ENT_QUOTES, 'UTF-8');
+    $t = preg_replace('/<(br|\/p|\/li|\/h[1-6])[^>]*>/i', "\n", $t);
+    $t = strip_tags($t);
+    $t = str_replace("\xc2\xa0", ' ', $t);
+    $t = preg_replace('/[ \t]+/', ' ', $t);
+    $t = preg_replace('/\n{3,}/', "\n\n", $t);
+    return trim($t);
+}
+
+/** Largura de abertura do geminado, em metros. Vem quase sempre da obs. */
+function acha_abertura($texto) {
+    $t = limpa_texto($texto);
+    $padroes = [
+        '/(\d{1,2}[.,]\d{1,2})\s*(?:m|mts?|metros)?\s*de\s+abertura/iu',
+        '/abertura[:\s]*(?:de\s*)?(\d{1,2}[.,]\d{1,2})/iu',
+        '/(\d{1,2}[.,]\d{1,2})\s*m\s*abertura/iu',
+    ];
+    foreach ($padroes as $p) {
+        if (preg_match($p, $t, $m)) {
+            $v = (float)str_replace(',', '.', $m[1]);
+            if ($v >= 2 && $v <= 20) return round($v, 2);
+        }
+    }
+    return null;
+}
+
 /** Endereço reduzido ao essencial, para comparar se mudou. */
 function normalizaEndereco($e) {
     $e = txt_norm($e);
@@ -347,6 +375,7 @@ try {
                     'atu'   => $ant['atu'] ?? null,
                     'lat'   => $ant['lat'] ?? null,
                     'lng'   => $ant['lng'] ?? null,
+                    'obs'   => $ant['obs'] ?? '',
                 ];
             }
         }
@@ -378,6 +407,7 @@ try {
                 $im['_atu']   = $c['atu'] ?? null;
                 $im['_lat']   = $c['lat'] ?? null;
                 $im['_lng']   = $c['lng'] ?? null;
+                $im['_obs']   = $c['obs'] ?? '';
                 if (!empty($im['_fotos'])) $comFoto++;
                 continue;
             }
@@ -409,6 +439,9 @@ try {
             $d = api_get("/imoveis/$id", 1);   // 1 tentativa: o laco ja tolera falha
             $d = $d['data'] ?? $d;
             $im['_atu'] = $d['atualizado_em'] ?? null;
+            $im['_obs'] = $d['obs'] ?? '';
+            $im['_tit'] = $d['titulo'] ?? '';
+            $im['_des'] = $d['descricao'] ?? '';
             // Coordenadas: só ~25% dos imóveis têm, mas bastam algumas por
             // bairro para calcular o centro dele e medir distâncias reais.
             $la = $d['endereco_latitude']  ?? null;
@@ -419,6 +452,7 @@ try {
             $im['_atu'] = $cache['atu'] ?? null;
             $im['_lat'] = $cache['lat'] ?? null;
             $im['_lng'] = $cache['lng'] ?? null;
+            $im['_obs'] = $cache['obs'] ?? '';
             log_sync("aviso: detalhe do imóvel $id falhou (" . $e->getMessage() . ')');
         }
 
@@ -560,6 +594,24 @@ try {
             }
         }
         $reg['fotos'] = $a['_fotos'] ?? [];
+
+        // Observacoes internas: uso do corretor, nunca vao para o link do cliente.
+        if (isset($a['_obs'])) $reg['obs'] = limpa_texto($a['_obs']);
+
+        // O campo 'tipo' do Robust nao e confiavel para geminado: 60 imoveis
+        // dizem "geminado" no titulo ou na descricao e estao cadastrados como
+        // Sobrado ou Casa. Marcamos a caracteristica a parte, sem mexer no
+        // tipo, que continua sendo o que o CRM informa.
+        $txtTipo = ' ' . txt_norm(($a['_tit'] ?? '') . ' ' . ($reg['ti'] ?? '') . ' ' . ($reg['d'] ?? '')) . ' ';
+        $reg['gem'] = (strpos($txtTipo, 'geminad') !== false
+                       || stripos((string)($a['tipo'] ?? ''), 'geminad') !== false) ? 1 : 0;
+
+        // Abertura (largura do terreno), so faz sentido fora de apartamento.
+        if (stripos((string)($a['tipo'] ?? ''), 'apartamento') === false) {
+            $reg['ab'] = acha_abertura(($a['_obs'] ?? '') . "\n" . ($reg['d'] ?? '') . "\n" . ($a['_des'] ?? ''));
+        } else {
+            $reg['ab'] = null;
+        }
 
         // Endereço legível
         $end = trim(($a['endereco_logradouro'] ?? '') . ' ' . ($a['endereco_numero'] ?? ''));

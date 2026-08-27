@@ -97,6 +97,14 @@ h2{font-family:Fraunces,serif;font-size:20px;margin:0 0 6px;line-height:1.25}
 .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
 .tag{font-size:11.5px;padding:3px 9px;background:rgba(47,93,79,.09);color:var(--moss);border-radius:2px}
 footer{margin-top:34px;padding-top:20px;border-top:1px solid var(--line);color:var(--mute);font-size:13px}
+.corretor{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--moss);
+  border-radius:4px;padding:15px 18px;margin-bottom:20px;display:flex;justify-content:space-between;
+  align-items:center;gap:14px;flex-wrap:wrap}
+.corretor .rot{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute)}
+.corretor b{font-family:Fraunces,serif;font-size:18px}
+.corretor .zap{background:var(--moss);color:#fff;padding:11px 18px;border-radius:3px;
+  text-decoration:none;font-size:14px;font-weight:600;white-space:nowrap}
+.corretor .zap:hover{background:#264c40}
 .print{margin:0 0 22px;padding:11px 20px;background:var(--moss);color:#fff;border:none;
   border-radius:3px;font:inherit;font-weight:600;cursor:pointer}
 @media print{
@@ -107,10 +115,32 @@ footer{margin-top:34px;padding-top:20px;border-top:1px solid var(--line);color:v
 @media(max-width:600px){.fotos{grid-template-columns:1fr 1fr}}
 </style></head><body>
 <div class="wrap">
+<?php
+$cliente  = trim((string)($sel['cliente'] ?? ''));
+$corretor = $sel['corretor'] ?? [];
+$corNome  = trim((string)($corretor['nome'] ?? ''));
+$corTel   = trim((string)($corretor['tel'] ?? ''));
+$soDigitos = preg_replace('/\D/', '', $corTel);
+if (strlen($soDigitos) >= 10 && strpos($soDigitos, '55') !== 0) $soDigitos = '55' . $soDigitos;
+?>
 <header>
-  <h1>Imóveis selecionados para você</h1>
+  <h1><?= $cliente !== '' ? $esc($cliente) . ', separei estes imóveis' : 'Imóveis selecionados para você' ?></h1>
   <div class="sub">Imobiliária Camargo · CRECI 4996 PJ · <?= count($sel['imoveis']) ?> opç<?= count($sel['imoveis'])>1?'ões':'ão' ?></div>
 </header>
+
+<?php if ($corNome !== ''): ?>
+<div class="corretor">
+  <div>
+    <span class="rot">Seu corretor</span>
+    <b><?= $esc($corNome) ?></b>
+  </div>
+  <?php if ($corTel !== ''): ?>
+    <a class="zap" href="https://wa.me/<?= $esc($soDigitos) ?>" target="_blank" rel="noopener">
+      Falar com <?= $esc(explode(' ', $corNome)[0]) ?> · <?= $esc($corTel) ?>
+    </a>
+  <?php endif; ?>
+</div>
+<?php endif; ?>
 
 <button class="print" onclick="window.print()">Salvar como PDF / Imprimir</button>
 
@@ -179,6 +209,9 @@ footer{margin-top:34px;padding-top:20px;border-top:1px solid var(--line);color:v
 <?php endforeach; ?>
 
 <footer>
+  <?php if ($corNome !== ''): ?>
+    <b><?= $esc($corNome) ?></b><?= $corTel !== '' ? ' · ' . $esc($corTel) : '' ?><br>
+  <?php endif; ?>
   Imobiliária Camargo Joinville Ltda · CRECI 4996 PJ<br>
   (47) 3278-8371 · (47) 99995-4045 · comercial@imobcamargo.com.br<br>
   <span style="font-size:12px">Valores e disponibilidade sujeitos a alteração sem aviso prévio.</span>
