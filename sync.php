@@ -698,6 +698,7 @@ try {
         'gerado_em'      => date('c'),
         'centros'        => $centros,
         'referencias'    => $refs,
+        'mapa_chave'     => defined('MAPA_CHAVE') ? MAPA_CHAVE : '',
         'bairros_rurais' => array_values(array_map(
             function ($k) { return isset($GLOBALS['BAIRRO_NOME'][$k]) ? $GLOBALS['BAIRRO_NOME'][$k] : $k; },
             $GLOBALS['BAIRRO_RURAL'])),

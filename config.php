@@ -20,6 +20,9 @@ if (!defined('GITHUB_REPO'))   define('GITHUB_REPO', '');
 if (!defined('GITHUB_TOKEN'))  define('GITHUB_TOKEN', '');
 if (!defined('GITHUB_BRANCH')) define('GITHUB_BRANCH', 'main');
 if (!defined('WEBHOOK_SEGREDO')) define('WEBHOOK_SEGREDO', '');
+// Chave da base cartografica (CARTO). Gratuita em carto.com/basemaps/apikey,
+// sem precisar de conta. Sem ela o mapa funciona, mas com uma marca d'agua.
+if (!defined('MAPA_CHAVE')) define('MAPA_CHAVE', '');
 
 // --- Caminhos ---
 // IMPORTANTE: a pasta de dados fica FORA da área pública do site.

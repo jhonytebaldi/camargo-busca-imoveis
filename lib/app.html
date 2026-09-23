@@ -1881,9 +1881,11 @@ function atualizarMapa(lista){
   wrap.classList.add('on');                       // a barra fica sempre
   wrap.classList.toggle('fechado', !mapaAberto);  // só o mapa some
   if(btn) btn.textContent = mapaAberto ? 'Ocultar mapa' : 'Mostrar mapa';
+  const semChave = !(META && META.mapa_chave);
   if(info) info.innerHTML = pts.length
     ? `<b>${pts.length}</b> no mapa` + (semCoord ? ` · ${semCoord} sem posição cadastrada` : '')
       + ' <i style="font-size:11.5px">— só os que atendem a tudo</i>'
+      + (semChave ? ' <i style="color:var(--clay)">· mapa sem chave: peça a chave gratuita da CARTO</i>' : '')
     : 'Nenhum imóvel compatível tem posição cadastrada';
 
   if(mapaAberto) desenharMapa(pts);
@@ -1917,8 +1919,24 @@ async function desenharMapa(pts){
     div.innerHTML = '';
     // scrollWheelZoom desligado: rolar a página não deve dar zoom sem querer.
     _mapa = L.map(div, {scrollWheelZoom:false});
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      {maxZoom:18, attribution:'© OpenStreetMap'}).addTo(_mapa);
+    // Base cartografica da CARTO, nao mais os servidores do OpenStreetMap.
+    // O OSM e mantido por voluntarios e a politica deles nao permite uso por
+    // aplicacoes de empresa — por isso passaram a devolver 403 "Access
+    // blocked". A CARTO usa os mesmos dados do OSM, tem uma faixa livre de
+    // 5 milhoes de blocos por mes e aceita uso comercial. A atribuicao a
+    // CARTO e ao OSM e obrigatoria e por isso fica sempre visivel.
+    const chave = (META && META.mapa_chave) || '';
+    L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+        + (chave ? '?key=' + encodeURIComponent(chave) : ''),
+      {
+        maxZoom: 20,
+        subdomains: 'abcd',
+        detectRetina: true,
+        attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>'
+                   + ' &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      }
+    ).addTo(_mapa);
     _mapa.on('click', () => _mapa.scrollWheelZoom.enable());
   }
   if(_marcadores) _marcadores.forEach(m => _mapa.removeLayer(m));
